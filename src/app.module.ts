@@ -9,18 +9,28 @@ import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { MessagesModule } from './messages/messages.module';
 
+import { AppConfigModule } from './config/config.module';
+import { AppConfigService } from './config/config.service';
+
 @Module({
   imports: [
-    // TypeORM MySQL Configuration
-    TypeOrmModule.forRoot({
-      type: 'mysql',
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '3306', 10),
-      username: process.env.DB_USERNAME,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_DATABASE,
-      autoLoadEntities: true,
-      synchronize: true,
+    // Register Global Config Module (with Joi validation)
+    AppConfigModule,
+
+    // TypeORM configured asynchronously using AppConfigService
+    TypeOrmModule.forRootAsync({
+      imports: [AppConfigModule],
+      inject: [AppConfigService],
+      useFactory: (config: AppConfigService) => ({
+        type: 'mysql',
+        host: config.dbHost,
+        port: config.dbPort,
+        username: config.dbUsername,
+        password: config.dbPassword,
+        database: config.dbDatabase,
+        autoLoadEntities: true,
+        synchronize: true,
+      }),
     }),
 
     // Serve static frontend assets from public/

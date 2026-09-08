@@ -5,6 +5,7 @@ dotenv.config({ path: 'example.env' });
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { AppConfigService } from './config/config.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -17,7 +18,8 @@ async function bootstrap() {
     }),
   );
 
-  const port = parseInt(process.env.PORT || '3000', 10);
+  const configService = app.get(AppConfigService);
+  const port = configService.port;
 
   // CRITICAL DOCKER REQUIREMENT:
   // Binding to '0.0.0.0' enables the application inside the container to accept

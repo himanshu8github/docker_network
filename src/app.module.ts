@@ -2,7 +2,8 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 dotenv.config({ path: 'example.env' });
 
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer, Logger } from '@nestjs/common';
+import { Request, Response, NextFunction } from 'express';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
@@ -11,21 +12,18 @@ import { MessagesModule } from './messages/messages.module';
 @Module({
   imports: [
     // TypeORM MySQL Configuration
-    // In local development: DB_HOST defaults to 'localhost'
-    // In Docker development: DB_HOST is set to 'mysql' (the service name of the MySQL container).
-    // Docker's embedded DNS server automatically resolves 'mysql' to the MySQL container's IP.
     TypeOrmModule.forRoot({
       type: 'mysql',
       host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT || '3306', 10),
-      username: process.env.DB_USERNAME ,
-      password: process.env.DB_PASSWORD ,
-      database: process.env.DB_DATABASE ,
+      username: process.env.DB_USERNAME,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_DATABASE,
       autoLoadEntities: true,
-      synchronize: true, // OK for learning projects; automatically creates the messages table
+      synchronize: true,
     }),
 
-    // Serve static frontend assets (HTML, CSS, JS) from the public/ folder
+    // Serve static frontend assets from public/
     ServeStaticModule.forRoot({
       rootPath: join(process.cwd(), 'public'),
       exclude: ['/messages*'],
@@ -34,4 +32,23 @@ import { MessagesModule } from './messages/messages.module';
     MessagesModule,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  private readonly logger = new Logger('HTTP');
+
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply((req: Request, res: Response, next: NextFunction) => {
+        const { method, originalUrl } = req;
+        const start = Date.now();
+
+        res.on('finish', () => {
+          const { statusCode } = res;
+          const duration = Date.now() - start;
+          this.logger.log(`${method} ${originalUrl} ${statusCode} - ${duration}ms`);
+        });
+
+        next();
+      })
+      .forRoutes('*'); // Captures every route, including 404s
+  }
+}

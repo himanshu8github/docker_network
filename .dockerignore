@@ -1,0 +1,30 @@
+# 1. Ignore dependencies (Linux container must install its own clean binaries)
+node_modules
+
+# 2. Ignore build output (container will build fresh JavaScript in dist/)
+dist
+
+# 3. Ignore environment files & secrets (NEVER bake passwords into images)
+.env
+.env.*
+example.env
+
+# 4. Ignore Git repository files
+.git
+.gitignore
+
+# 5. Ignore logs
+*.log
+npm-debug.log*
+
+# 6. Ignore editor / IDE configs and OS files
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# 7. Ignore Docker and markdown documentation
+Dockerfile*
+docker-compose*
+README.md
+

@@ -4,34 +4,16 @@ dotenv.config({ path: 'example.env' });
 
 import { Module, NestModule, MiddlewareConsumer, Logger } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
-import { MessagesModule } from './messages/messages.module';
-
 import { AppConfigModule } from './config/config.module';
-import { AppConfigService } from './config/config.service';
+import { SqlDbModule } from './database/sqldb.module';
+import { MessagesModule } from './messages/messages.module';
 
 @Module({
   imports: [
-    // Register Global Config Module (with Joi validation)
     AppConfigModule,
-
-    // TypeORM configured asynchronously using AppConfigService
-    TypeOrmModule.forRootAsync({
-      imports: [AppConfigModule],
-      inject: [AppConfigService],
-      useFactory: (config: AppConfigService) => ({
-        type: 'mysql',
-        host: config.dbHost,
-        port: config.dbPort,
-        username: config.dbUsername,
-        password: config.dbPassword,
-        database: config.dbDatabase,
-        autoLoadEntities: true,
-        synchronize: true,
-      }),
-    }),
+    SqlDbModule,
 
     // Serve static frontend assets from public/
     ServeStaticModule.forRoot({

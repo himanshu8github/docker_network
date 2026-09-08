@@ -1,187 +1,194 @@
-# Two-Tier NestJS + MySQL Learning Application
+# 🐳 Three-Tier Containerized Architecture: NestJS + MySQL + Nginx
 
-A minimal, beginner-friendly two-tier web application built with **NestJS**, **TypeORM**, and **MySQL**, featuring a vanilla HTML/CSS/JavaScript frontend served directly by NestJS.
+A complete hands-on learning project exploring **Docker containerization, custom bridge networks, container-to-container DNS resolution, database network isolation, and Nginx reverse proxying**.
 
-This project recreates the architecture and learning concepts of [Shubham Londhe's two-tier Flask + MySQL application](https://github.com/LondheShubham153/two-tier-flask-app/tree/master), adapted for developers familiar with **TypeScript & Node.js**.
+Inspired by [Shubham Londhe's two-tier Flask + MySQL project](https://github.com/LondheShubham153/two-tier-flask-app/tree/master), adapted and scaled using **NestJS (TypeScript) + TypeORM + MySQL + Nginx + Vanilla HTML/CSS/JS**.
 
 ---
 
-## 1. Architecture Overview
+## 1. System Architecture
 
-### Traditional (Non-Docker / Local Machine)
+### Production 3-Tier Setup (With Nginx Reverse Proxy)
 ```text
-Browser (http://localhost:3000)
-    │
-    ▼ (HTTP Request)
-NestJS App (listening on 0.0.0.0:3000)
-    │
-    ▼ (TCP / MySQL Protocol via localhost:3306)
-Local MySQL Server
-```
-
-### Docker Containerized Architecture (What you will build)
-```text
-Browser (http://localhost:3000 on Host)
-    │
-    ▼ (Port Mapping -p 3000:3000)
-┌─────────────────────────────────────────────────────────────┐
-│ Docker Network (e.g. app-network)                          │
-│                                                             │
-│   ┌──────────────────────────┐                              │
-│   │     NestJS Container     │                              │
-│   │   (listening on 0.0.0.0) │                              │
-│   └────────────┬─────────────┘                              │
-│                │                                            │
-│                │ DB_HOST=mysql                              │
-│                │ (Docker Embedded DNS resolves "mysql")     │
-│                ▼                                            │
-│   ┌──────────────────────────┐                              │
-│   │     MySQL Container      │                              │
-│   │     (service: mysql)     │                              │
-│   │     (port: 3306)         │                              │
-│   └──────────────────────────┘                              │
-└─────────────────────────────────────────────────────────────┘
+Browser / Client (http://<EC2_PUBLIC_IP>)  <-- Standard Port 80 (No custom port needed)
+        │
+        ▼ (Public Traffic)
+┌───────────────────────────────────────────────────────────────────────────┐
+│ Docker Custom Bridge Network: two-tier-net                                │
+│                                                                           │
+│   ┌────────────────────────────────┐                                      │
+│   │    nginx-proxy Container       │                                      │
+│   │    (Listening on Port 80)      │                                      │
+│   └───────────────┬────────────────┘                                      │
+│                   │                                                       │
+│                   │ proxy_pass http://nestjs-app:3000                     │
+│                   ▼                                                       │
+│   ┌────────────────────────────────┐                                      │
+│   │    nestjs-app Container        │                                      │
+│   │    (Listening on Port 3000)    │ (Port 3000 is hidden from internet!) │
+│   └───────────────┬────────────────┘                                      │
+│                   │                                                       │
+│                   │ DB_HOST=mysql (Docker Embedded DNS: 127.0.0.11)       │
+│                   ▼                                                       │
+│   ┌────────────────────────────────┐                                      │
+│   │    mysql Container             │                                      │
+│   │    (Listening on Port 3306)    │ (Port 3306 is 100% isolated!)        │
+│   └────────────────────────────────┘                                      │
+└───────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. The Core Docker Networking Concept
+## 2. Core DevOps & Docker Concepts Learned
 
-### Why `DB_HOST=mysql` works inside Docker
-When two containers are attached to the same user-defined Docker bridge network (or started together with Docker Compose), Docker automatically runs an **embedded DNS server** (at `127.0.0.11` inside each container).
+### 🔹 1. Docker Bridge Networks & Internal DNS
+* **The Problem:** Inside a container, `localhost` points to the container itself. Connecting to `DB_HOST=localhost` fails with `ECONNREFUSED`.
+* **The Solution:** By placing containers on a custom user-defined network (`docker network create two-tier-net`), Docker's embedded DNS server (`127.0.0.11`) automatically translates the hostname **`mysql`** to the MySQL container's private IP.
 
-- If the MySQL container or Docker Compose service is named `mysql`, Docker's DNS maps the hostname `mysql` to that container's internal IP address (e.g., `172.20.0.2`).
-- When NestJS makes a connection to `mysql:3306`, Docker DNS resolves `mysql` seamlessly.
+### 🔹 2. Database Network Isolation (Security First)
+* We deliberately **do NOT publish port 3306** to the host (no `-p 3306:3306`).
+* **Result:** 
+  * Outside Internet ➔ MySQL: ❌ Blocked
+  * EC2 Host ➔ MySQL: ❌ Blocked
+  * NestJS Container ➔ MySQL: ✅ Allowed (purely private, container-to-container communication).
 
-### Why `DB_HOST=localhost` fails inside a Docker container
-Each Docker container has its own isolated network namespace and its own network loopback interface (`127.0.0.1` / `localhost`).
-- Inside the NestJS container, `localhost` means **this NestJS container**, NOT your host machine, and NOT the MySQL container.
-- Because MySQL is running in a completely separate container, the NestJS container trying to connect to `localhost:3306` will result in `ECONNREFUSED`.
+### 🔹 3. Nginx as a Reverse Proxy
+* Placed Nginx at the front door on standard web port **80**.
+* Users access the site directly via `http://<IP>` without needing custom backend ports (`:3000` or `:3002`).
+* Nginx handles request buffering and passes real client headers (`X-Real-IP`, `X-Forwarded-For`) to NestJS.
 
-### The Core Difference
-| Scenario | `DB_HOST` Setting | Reason |
-|---|---|---|
-| **Local Development** (No Docker) | `DB_HOST=localhost` | MySQL runs directly on your local operating system. |
-| **Docker Development** (Containers on same network) | `DB_HOST=mysql` | MySQL runs in a container named `mysql`; Docker DNS resolves this name. |
+### 🔹 4. Failure Mode Analysis (502 Bad Gateway vs 504 Gateway Timeout)
+* **502 Bad Gateway:** Occurs when Nginx is alive, but the upstream backend (`nestjs-app`) is stopped or connection is immediately refused (`Connection Refused`).
+* **504 Gateway Timeout:** Occurs when Nginx successfully connects to the backend, but the backend takes longer than the timeout limit (e.g. 60s) to reply.
+* **Security Hardening:** Added `server_tokens off;` in `nginx.conf` so the 502 page only says `nginx` without revealing the version number (`1.31.5`).
 
 ---
 
-## 3. Local Development (Without Docker)
+## 3. Clean Enterprise NestJS Architecture
 
-### Prerequisites
-- Node.js (v18+)
-- MySQL Server running locally on port 3306
+The backend code adheres to clean, production-grade modular standards:
 
-### Steps
-1. **Create the database in MySQL**:
+```text
+src/
+├── main.ts                     # Bootstrap & 0.0.0.0 binding
+├── app.module.ts               # Root orchestrator module
+├── config/                     # Centralized environment configuration
+│   ├── config.schema.ts        # Joi validation schema (fail-fast on missing keys)
+│   ├── config.service.ts       # Typed getters (port, dbHost, dbPassword, etc.)
+│   ├── config.controller.ts    # GET /config/info (safe runtime config inspection)
+│   └── config.module.ts        # Global module exporting AppConfigService
+├── database/
+│   └── sqldb.module.ts         # Encapsulated TypeOrmModule.forRootAsync
+├── messages/                   # Feature module
+│   ├── message.entity.ts       # MySQL Message entity
+│   ├── messages.controller.ts   # POST /messages, GET /messages, GET /messages/:id
+│   ├── messages.service.ts      # TypeORM repository interaction
+│   └── dto/create-message.dto.ts
+public/                         # Static Frontend served by NestJS
+├── index.html                  # Message Board UI
+├── style.css                   # Clean, responsive styling
+└── app.js                      # Vanilla JavaScript DOM & fetch logic
+```
+
+---
+
+## 4. Hands-On Step-by-Step Deployment Cheatsheet
+
+### Step 1: Create the Private Docker Network
+```bash
+docker network create two-tier-net
+```
+
+### Step 2: Run the MySQL Container (Isolated)
+```bash
+docker run -d \
+  --name mysql \
+  --network two-tier-net \
+  -e MYSQL_ROOT_PASSWORD=password \
+  -e MYSQL_DATABASE=message_db \
+  mysql:latest
+```
+
+### Step 3: Build & Run the NestJS Backend
+```bash
+# Build the Docker image
+docker build -t nestjs_backend_app .
+
+# Run the container (Notice: No -p flag needed! Hidden behind Nginx)
+docker run -d \
+  --name nestjs-app \
+  --network two-tier-net \
+  -e DB_HOST=mysql \
+  -e DB_PORT=3306 \
+  -e DB_USERNAME=root \
+  -e DB_PASSWORD=password \
+  -e DB_DATABASE=message_db \
+  nestjs_backend_app
+```
+
+### Step 4: Run the Nginx Reverse Proxy
+```bash
+docker run -d \
+  --name nginx-proxy \
+  --network two-tier-net \
+  -p 80:80 \
+  -v $(pwd)/nginx.conf:/etc/nginx/nginx.conf:ro \
+  nginx:alpine
+```
+
+### Step 5: Test in Browser
+Open your browser and visit:
+```text
+http://<YOUR_EC2_PUBLIC_IP>
+```
+*(No port number required!)*
+
+---
+
+## 5. Useful Verification & Troubleshooting Commands
+
+| Task | Command |
+|---|---|
+| **View running containers** | `docker ps` |
+| **View containers and networks** | `docker ps --format "table {{.Names}}\t{{.Networks}}\t{{.Status}}"` |
+| **Inspect private network** | `docker network inspect two-tier-net` |
+| **Stream Nginx proxy logs** | `docker logs -f nginx-proxy` |
+| **Stream NestJS app logs** | `docker logs -f nestjs-app` |
+| **Stream MySQL database logs** | `docker logs -f mysql` |
+| **Reload Nginx config (zero downtime)** | `docker exec -it nginx-proxy nginx -s reload` |
+| **Simulate 502 Bad Gateway** | `docker stop nestjs-app` |
+| **Recover backend from failure** | `docker start nestjs-app` |
+| **Log in to MySQL container shell** | `docker exec -it mysql mysql -u root -p` |
+| **Check public IP from EC2** | `curl checkip.amazonaws.com` |
+
+---
+
+## 6. Local Development (Without Docker)
+
+1. Copy environment template:
+   ```bash
+   copy example.env .env
+   ```
+2. Start local MySQL and create database:
    ```sql
    CREATE DATABASE message_db;
    ```
-
-2. **Configure Environment Variables**:
-   Copy the provided `example.env` to `.env` (or export environment variables directly in your terminal):
-   ```bash
-   cp example.env .env
-   ```
-
-   Values in `example.env`:
-   ```properties
-   DB_HOST=localhost
-   DB_PORT=3306
-   DB_USERNAME=root
-   DB_PASSWORD=password
-   DB_DATABASE=message_db
-   PORT=3000
-   ```
-
-3. **Install Dependencies**:
+3. Install dependencies and run:
    ```bash
    npm install
-   ```
-
-4. **Run the Application**:
-   ```bash
    npm run start:dev
    ```
-
-5. **Visit the App**:
-   Open your browser at [http://localhost:3000](http://localhost:3000).
+4. Access at: `http://localhost:3000` (or the port defined in `.env`).
 
 ---
 
-## 4. API Reference
-
-| Method | Endpoint | Description | Sample Request / Response |
-|---|---|---|---|
-| `POST` | `/messages` | Create and save a new message | Body: `{"message": "Hello Docker"}`<br>Returns created object with `id` and `createdAt`. |
-| `GET` | `/messages` | List all messages (newest first) | Returns: `[{"id": 1, "message": "...", "createdAt": "..."}]` |
-| `GET` | `/messages/:id` | Fetch single message by integer ID | Returns message object or `404 Not Found`. |
-
----
-
-## 5. Your Docker Exercise
-
-> [!IMPORTANT]
-> No `Dockerfile` or `docker-compose.yml` is provided in this repository. 
-> The goal of this project is for **you** to write them and master Docker containerization and networking hands-on!
-
-Follow these exercises to complete your learning:
-
-### Exercise 1: Containerizing with Standalone Docker CLI
-1. **Write a `Dockerfile` for NestJS**:
-   - Use an official Node base image (e.g. `node:20-alpine`).
-   - Set working directory to `/app`.
-   - Copy `package*.json`, run `npm install`.
-   - Copy source code and static assets (`public/`).
-   - Run `npm run build`.
-   - Expose port `3000`.
-   - Set command to `npm run start:prod` (or `node dist/src/main`).
-2. **Build the NestJS image**:
-   ```bash
-   docker build -t my-nestjs-app .
-   ```
-3. **Create a custom Docker network**:
-   ```bash
-   docker network create two-tier-net
-   ```
-4. **Start the MySQL container on the network**:
-   ```bash
-   docker run -d \
-     --name mysql \
-     --network two-tier-net \
-     -e MYSQL_ROOT_PASSWORD=password \
-     -e MYSQL_DATABASE=message_db \
-     mysql:8.0
-   ```
-5. **Start the NestJS container on the same network**:
-   ```bash
-   docker run -d \
-     --name nestjs-app \
-     --network two-tier-net \
-     -p 3000:3000 \
-     -e DB_HOST=mysql \
-     -e DB_PORT=3306 \
-     -e DB_USERNAME=root \
-     -e DB_PASSWORD=password \
-     -e DB_DATABASE=message_db \
-     my-nestjs-app
-   ```
-6. **Inspect the network**:
-   ```bash
-   docker network inspect two-tier-net
-   ```
-   *Look at the "Containers" section to verify both containers share the subnet and IP range.*
-7. **Test from Browser**:
-   Visit `http://localhost:3000`, post messages, and verify persistence.
-
----
-
-### Exercise 2: Defining Everything in `docker-compose.yml`
-1. Create a `docker-compose.yml` file.
-2. Define two services: `nestjs` and `mysql`.
-3. Configure environment variables, port mapping (`3000:3000`), and a shared network.
-4. Add a named volume for `/var/lib/mysql` to preserve database records across container restarts.
-5. Launch the entire stack using:
-   ```bash
-   docker compose up --build
-   ```
+## 7. Upcoming Learning Roadmap
+- [x] Two-Tier NestJS + MySQL Architecture
+- [x] Docker Custom Bridge Network & DNS
+- [x] Database Network Isolation
+- [x] Nginx Reverse Proxy (Port 80)
+- [x] Failure Simulation (502 Bad Gateway) & Security Hardening (`server_tokens off;`)
+- [x] Enterprise Config & Database Modules (Joi + `SqlDbModule`)
+- [ ] Multiple Backend Replicas & Load Balancing (Round-Robin via Nginx upstream)
+- [ ] Restricted Database User (CRUD only, block DROP/TRUNCATE)
+- [ ] AWS Secrets Manager Integration

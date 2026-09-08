@@ -1,3 +1,7 @@
+import * as dotenv from 'dotenv';
+dotenv.config();
+dotenv.config({ path: 'example.env' });
+
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ServeStaticModule } from '@nestjs/serve-static';
@@ -14,9 +18,9 @@ import { MessagesModule } from './messages/messages.module';
       type: 'mysql',
       host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT || '3306', 10),
-      username: process.env.DB_USERNAME || 'root',
-      password: process.env.DB_PASSWORD || 'password',
-      database: process.env.DB_DATABASE || 'message_db',
+      username: process.env.DB_USERNAME ,
+      password: process.env.DB_PASSWORD ,
+      database: process.env.DB_DATABASE ,
       autoLoadEntities: true,
       synchronize: true, // OK for learning projects; automatically creates the messages table
     }),

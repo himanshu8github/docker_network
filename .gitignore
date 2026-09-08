@@ -26,3 +26,6 @@ Thumbs.db
 .env.*.local
 *.env
 example.env
+
+# Learning & Architecture Notes
+configure.md

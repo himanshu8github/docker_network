@@ -62,6 +62,21 @@ Browser / Client (http://<EC2_PUBLIC_IP>)  <-- Standard Port 80 (No custom port 
 * **504 Gateway Timeout:** Occurs when Nginx successfully connects to the backend, but the backend takes longer than the timeout limit (e.g. 60s) to reply.
 * **Security Hardening:** Added `server_tokens off;` in `nginx.conf` so the 502 page only says `nginx` without revealing the version number (`1.31.5`).
 
+### 🔹 5. Active Container Health Checks
+* Rather than assuming a container is ready as soon as it launches, we use Docker's `healthcheck` instruction (`mysqladmin ping`).
+* **Why it matters:** MySQL takes several seconds to initialize database files on startup. Without a healthcheck, dependent services (`nestjs-app`) will fail to connect on boot.
+* Using `depends_on: { mysql: { condition: service_healthy } }` ensures the application tier waits until MySQL is fully operational.
+
+### 🔹 6. Auto-Restart Behavior: Intentional Stop vs. Process Crash
+* **`restart: unless-stopped`** policy restarts containers across crashes and server reboots, **except** when intentionally stopped via `docker stop`.
+* `docker stop` sends `SIGTERM` (graceful shutdown) ➔ Docker respects this as manual maintenance, so `RestartCount` remains `0`.
+* A real crash (simulated via `docker exec <container> kill -9 1` or an unhandled Node error) triggers Docker's auto-healing daemon, reviving the container and incrementing `RestartCount`.
+
+### 🔹 7. Privacy & Log Anonymization
+* Access logs in production environments often fall under privacy regulations (GDPR).
+* We practiced both **Nginx-level IP anonymization** (via `map` directives in `nginx.conf`) and **CLI-level real-time log stream masking** (using `sed` in Bash or regex in PowerShell) to mask client IPs as `xxx.xxx.xxx.xxx` or `[HIDDEN_IP]`.
+
+
 ---
 
 ## 3. Clean Enterprise NestJS Architecture
@@ -147,19 +162,39 @@ http://<YOUR_EC2_PUBLIC_IP>
 
 ## 5. Useful Verification & Troubleshooting Commands
 
+### 📋 General Container & Network Operations
 | Task | Command |
 |---|---|
 | **View running containers** | `docker ps` |
 | **View containers and networks** | `docker ps --format "table {{.Names}}\t{{.Networks}}\t{{.Status}}"` |
 | **Inspect private network** | `docker network inspect two-tier-net` |
-| **Stream Nginx proxy logs** | `docker logs -f nginx-proxy` |
-| **Stream NestJS app logs** | `docker logs -f nestjs-app` |
-| **Stream MySQL database logs** | `docker logs -f mysql` |
 | **Reload Nginx config (zero downtime)** | `docker exec -it nginx-proxy nginx -s reload` |
-| **Simulate 502 Bad Gateway** | `docker stop nestjs-app` |
-| **Recover backend from failure** | `docker start nestjs-app` |
 | **Log in to MySQL container shell** | `docker exec -it mysql mysql -u root -p` |
 | **Check public IP from EC2** | `curl checkip.amazonaws.com` |
+
+---
+
+### 🔍 Health Check & Auto-Restart Diagnostics
+| Task | Command |
+|---|---|
+| **Inspect MySQL Health Check logs** | `docker inspect --format='{{json .State.Health}}' mysql` |
+| **Quick check health status** | `docker inspect --format='{{.State.Health.Status}}' mysql` |
+| **Simulate Manual Stop (RestartCount stays 0)** | `docker stop nestjs-app` |
+| **Simulate Process Crash (Triggers Auto-Restart)** | `docker exec nestjs-app kill -9 1` |
+| **Inspect Container Status & RestartCount** | `docker inspect --format='Status: {{.State.Status}} \| RestartCount: {{.RestartCount}} \| StartedAt: {{.State.StartedAt}}' nestjs-app` |
+| **Stream Live Container Lifecycle Events** | `docker events --filter container=nestjs-app` |
+
+---
+
+### 🛡️ Nginx Log Streaming & Privacy Masking (Hide Client IP)
+| Task | Command |
+|---|---|
+| **Stream Nginx logs (standard)** | `docker logs -f nginx-proxy` |
+| **Stream with timestamps** | `docker logs -t -f nginx-proxy` |
+| **View only recent 50 lines** | `docker logs --tail 50 nginx-proxy` |
+| **Mask ALL IPv4 addresses (Linux / Bash)** | `docker logs -f nginx-proxy 2>&1 \| sed -E 's/[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/xxx.xxx.xxx.xxx/g'` |
+| **Mask ALL IPv4 addresses (PowerShell)** | `docker logs -f nginx-proxy 2>&1 \| ForEach-Object { $_ -replace '\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b', 'xxx.xxx.xxx.xxx' }` |
+| **Filter error logs only** | `docker logs nginx-proxy 2>&1 \| grep -E "error\|warn"` |
 
 ---
 
@@ -182,13 +217,17 @@ http://<YOUR_EC2_PUBLIC_IP>
 
 ---
 
-## 7. Upcoming Learning Roadmap
+## 7. Learning Roadmap & Milestones
 - [x] Two-Tier NestJS + MySQL Architecture
-- [x] Docker Custom Bridge Network & DNS
-- [x] Database Network Isolation
-- [x] Nginx Reverse Proxy (Port 80)
+- [x] Docker Custom Bridge Network & Embedded DNS
+- [x] Database Network Isolation (Zero Published Ports)
+- [x] Nginx Reverse Proxy (Port 80 front door)
 - [x] Failure Simulation (502 Bad Gateway) & Security Hardening (`server_tokens off;`)
 - [x] Enterprise Config & Database Modules (Joi + `SqlDbModule`)
+- [x] Container Health Checks (`mysqladmin ping` + `condition: service_healthy`)
+- [x] Crash Recovery & Auto-Restart Policies (`unless-stopped` vs `docker stop` vs PID 1 kill)
+- [x] Real-time Log Stream Analysis & IP Privacy Masking (`sed` & regex filtering)
 - [ ] Multiple Backend Replicas & Load Balancing (Round-Robin via Nginx upstream)
 - [ ] Restricted Database User (CRUD only, block DROP/TRUNCATE)
 - [ ] AWS Secrets Manager Integration
+

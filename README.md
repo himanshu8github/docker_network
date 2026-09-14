@@ -68,9 +68,9 @@ Browser / Client (http://<EC2_PUBLIC_IP>)  <-- Standard Port 80 (No custom port 
 * Using `depends_on: { mysql: { condition: service_healthy } }` ensures the application tier waits until MySQL is fully operational.
 
 ### 🔹 6. Auto-Restart Behavior: Intentional Stop vs. Process Crash
-* **`restart: unless-stopped`** policy restarts containers across crashes and server reboots, **except** when intentionally stopped via `docker stop`.
-* `docker stop` sends `SIGTERM` (graceful shutdown) ➔ Docker respects this as manual maintenance, so `RestartCount` remains `0`.
-* A real crash (simulated via `docker exec <container> kill -9 1` or an unhandled Node error) triggers Docker's auto-healing daemon, reviving the container and incrementing `RestartCount`.
+* **`restart: unless-stopped`** policy restarts containers across crashes and server reboots, **except** when intentionally stopped via `docker stop` or `docker kill` from the CLI.
+* Docker CLI commands (`docker stop`, `docker kill`) signal manual administrative action ➔ Docker preserves the stopped state, so `RestartCount` remains `0`.
+* A real internal application crash (simulated by terminating the internal application process via `docker exec nestjs-app sh -c "kill -9 \$(pidof node)"`) triggers Docker's auto-healing daemon, automatically reviving the container and incrementing `RestartCount` to 1.
 
 ### 🔹 7. Privacy & Log Anonymization
 * Access logs in production environments often fall under privacy regulations (GDPR).
@@ -179,8 +179,8 @@ http://<YOUR_EC2_PUBLIC_IP>
 |---|---|
 | **Inspect MySQL Health Check logs** | `docker inspect --format='{{json .State.Health}}' mysql` |
 | **Quick check health status** | `docker inspect --format='{{.State.Health.Status}}' mysql` |
-| **Simulate Manual Stop (RestartCount stays 0)** | `docker stop nestjs-app` |
-| **Simulate Process Crash (Triggers Auto-Restart)** | `docker exec nestjs-app kill -9 1` |
+| **Simulate Manual Stop / Kill (RestartCount stays 0)** | `docker stop nestjs-app` (or `docker kill nestjs-app`) |
+| **Simulate Internal Process Crash (Triggers Auto-Restart)** | `docker exec nestjs-app sh -c "kill -9 \$(pidof node)"` |
 | **Inspect Container Status & RestartCount** | `docker inspect --format='Status: {{.State.Status}} \| RestartCount: {{.RestartCount}} \| StartedAt: {{.State.StartedAt}}' nestjs-app` |
 | **Stream Live Container Lifecycle Events** | `docker events --filter container=nestjs-app` |
 

@@ -1,5 +1,6 @@
 import {
   Injectable,
+  OnModuleInit,
   ConflictException,
   UnauthorizedException,
   ForbiddenException,
@@ -14,7 +15,7 @@ import { RegisterDto } from '../auth/dto/register.dto';
 import { LoginDto } from '../auth/dto/login.dto';
 
 @Injectable()
-export class AdminService {
+export class AdminService implements OnModuleInit {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
@@ -24,6 +25,40 @@ export class AdminService {
     private readonly refreshTokenRepository: Repository<RefreshToken>,
     private readonly cryptoService: CryptoService,
   ) {}
+
+  async onModuleInit() {
+    try {
+      // Ensure 'admin' and 'user' roles exist
+      let adminRole = await this.roleRepository.findOne({ where: { name: 'admin' } });
+      if (!adminRole) {
+        adminRole = await this.roleRepository.save({ name: 'admin' });
+      }
+
+      let userRole = await this.roleRepository.findOne({ where: { name: 'user' } });
+      if (!userRole) {
+        await this.roleRepository.save({ name: 'user' });
+      }
+
+      // Ensure default admin user exists
+      const existingAdmin = await this.userRepository.findOne({
+        where: { email: 'admin@cloudops.tech' },
+      });
+
+      if (!existingAdmin) {
+        const passwordHash = this.cryptoService.hashPassword('Admin123456');
+        await this.userRepository.save({
+          email: 'admin@cloudops.tech',
+          username: 'admin',
+          passwordHash,
+          roleId: adminRole.id,
+          role: adminRole,
+        });
+        console.log('⚡ [Seed] Default Admin Created: admin@cloudops.tech / Admin123456');
+      }
+    } catch (err) {
+      console.warn('[Seed] Admin seeding check failed:', err.message);
+    }
+  }
 
   // Register Admin Account
   async registerAdmin(dto: RegisterDto) {

@@ -74,7 +74,7 @@ export class AdminService implements OnModuleInit {
       86400,
     );
 
-    const rawRefreshToken = this.cryptoService.generateRefreshTokenString();
+    const rawRefreshToken = this.cryptoService.generateRefreshTokenString({ id: savedAdmin.id, role: 'admin' });
     const tokenHash = this.cryptoService.hashRefreshToken(rawRefreshToken);
     const expiresAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
 
@@ -88,7 +88,7 @@ export class AdminService implements OnModuleInit {
 
     return {
       admin: {
-        id: savedAdmin.id,
+        // id: savedAdmin.id,
         email: savedAdmin.email,
         username: savedAdmin.username,
         role: 'admin',
@@ -96,7 +96,7 @@ export class AdminService implements OnModuleInit {
       },
       accessToken,
       refreshToken: rawRefreshToken,
-      expiresIn: 86400,
+      // expiresIn: 86400,
     };
   }
 
@@ -126,7 +126,7 @@ export class AdminService implements OnModuleInit {
       86400,
     );
 
-    const rawRefreshToken = this.cryptoService.generateRefreshTokenString();
+    const rawRefreshToken = this.cryptoService.generateRefreshTokenString({ id: user.id, role: 'admin' });
     const tokenHash = this.cryptoService.hashRefreshToken(rawRefreshToken);
     const expiresAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
 
@@ -140,14 +140,14 @@ export class AdminService implements OnModuleInit {
 
     return {
       admin: {
-        id: user.id,
+        // id: user.id,
         email: user.email,
         username: user.username,
         role: 'admin',
       },
       accessToken,
       refreshToken: rawRefreshToken,
-      expiresIn: 86400,
+      // expiresIn: 86400,
     };
   }
 }

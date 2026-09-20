@@ -105,7 +105,7 @@ export class AuthService implements OnModuleInit {
       7200, // 2 hours
     );
 
-    const rawRefreshToken = this.cryptoService.generateRefreshTokenString();
+    const rawRefreshToken = this.cryptoService.generateRefreshTokenString({ id: savedUser.id, role: 'user' });
     const tokenHash = this.cryptoService.hashRefreshToken(rawRefreshToken);
     const expiresAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000); // 2 days
 
@@ -151,7 +151,7 @@ export class AuthService implements OnModuleInit {
       7200,
     );
 
-    const rawRefreshToken = this.cryptoService.generateRefreshTokenString();
+    const rawRefreshToken = this.cryptoService.generateRefreshTokenString({ id: user.id, role: roleName });
     const tokenHash = this.cryptoService.hashRefreshToken(rawRefreshToken);
     const expiresAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
 

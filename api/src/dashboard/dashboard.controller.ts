@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, UseGuards, Req, Query } from '@nestjs/common';
 import { Request } from 'express';
 import { DashboardService } from './dashboard.service';
 import { AdminRoleGuard } from '../admin/guards/admin-role.guard';
@@ -9,17 +9,27 @@ export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get('metrics')
-  getMetrics(@Req() req: Request) {
-    return this.dashboardService.getMetrics(req.headers);
+  getMetrics(
+    @Req() req: Request,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.dashboardService.getMetrics(req.headers, page, limit);
   }
 
   @Get('users')
-  getUsersDirectory() {
-    return this.dashboardService.getUsersDirectory();
+  getUsersDirectory(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.dashboardService.getUsersDirectory(page, limit);
   }
 
   @Get('visits')
-  getVisitsAnalytics() {
-    return this.dashboardService.getVisitsAnalytics();
+  getVisitsAnalytics(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.dashboardService.getVisitsAnalytics(page, limit);
   }
 }

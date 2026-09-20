@@ -34,36 +34,55 @@ export class CryptoService {
     return crypto.createHash('sha256').update(this.secret).digest();
   }
 
-  // Generate AES-256-GCM Authenticated Encrypted Token
-  // Format: <iv_base64url>.<ciphertext_base64url>.<authTag_base64url>
-  // Without the secret key, nobody can decrypt or inspect the claims inside (e.g. on jwt.io)
+  // Generate Standard JWT (Header + Encrypted Payload + Signature)
+  // 1. Header: Standard {"alg":"HS256","typ":"JWT"}
+  // 2. Payload: JSON object containing { "enc": "<AES-256-GCM encrypted claims>", "exp": <timestamp> }
+  //    -> Valid JSON so jwt.io parses without header/payload errors!
+  //    -> Sensitive claims (email, username, role, sub) are encrypted with AES-256-GCM so NOBODY can decrypt on jwt.io without server secret key!
+  // 3. Signature: HMAC-SHA256(header.payload, secret)
   generateToken(
     user: { id: number; email: string; username: string; role: 'admin' | 'user' },
     expiresInSeconds: number,
   ): string {
     const nowSec = Math.floor(Date.now() / 1000);
-    const payload: TokenPayload = {
+    const exp = nowSec + expiresInSeconds;
+
+    const claims = {
       sub: user.id,
       email: user.email,
       username: user.username,
       role: user.role,
       dateOfLogin: new Date().toISOString(),
-      exp: nowSec + expiresInSeconds,
+      exp,
     };
 
+    // Encrypt claims using AES-256-GCM
     const key = this.getEncryptionKey();
     const iv = crypto.randomBytes(16);
     const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-
-    let ciphertext = cipher.update(JSON.stringify(payload), 'utf8', 'base64url');
+    let ciphertext = cipher.update(JSON.stringify(claims), 'utf8', 'base64url');
     ciphertext += cipher.final('base64url');
     const authTag = cipher.getAuthTag().toString('base64url');
-    const ivStr = iv.toString('base64url');
+    const encryptedData = `${iv.toString('base64url')}.${ciphertext}.${authTag}`;
 
-    return `${ivStr}.${ciphertext}.${authTag}`;
+    // Standard 3-Part JWT: Header . Payload . Signature
+    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+    const payload = Buffer.from(
+      JSON.stringify({
+        enc: encryptedData,
+        exp,
+      }),
+    ).toString('base64url');
+
+    const signature = crypto
+      .createHmac('sha256', this.secret)
+      .update(`${header}.${payload}`)
+      .digest('base64url');
+
+    return `${header}.${payload}.${signature}`;
   }
 
-  // Verify & Decrypt Crypto Token (AES-256-GCM with backward compatibility for legacy tokens)
+  // Verify & Decrypt Token (Supports Header + Encrypted Payload + Signature)
   verifyToken(token: string): TokenPayload {
     const parts = token.split('.');
     if (parts.length !== 3) {
@@ -73,7 +92,54 @@ export class CryptoService {
     const [part1, part2, part3] = parts;
     const nowSec = Math.floor(Date.now() / 1000);
 
-    // 1. Attempt AES-256-GCM Decryption (Primary encrypted format)
+    // 1. Standard JWT with Encrypted Payload (header.payload.signature)
+    try {
+      const expectedSignature = crypto
+        .createHmac('sha256', this.secret)
+        .update(`${part1}.${part2}`)
+        .digest('base64url');
+
+      if (
+        part3.length === expectedSignature.length &&
+        crypto.timingSafeEqual(Buffer.from(part3), Buffer.from(expectedSignature))
+      ) {
+        const parsedBody = JSON.parse(Buffer.from(part2, 'base64url').toString('utf8'));
+
+        // If payload has encrypted 'enc' field (AES-256-GCM)
+        if (parsedBody.enc) {
+          const encParts = parsedBody.enc.split('.');
+          if (encParts.length === 3) {
+            const [ivStr, ciphertext, tagStr] = encParts;
+            const iv = Buffer.from(ivStr, 'base64url');
+            const authTag = Buffer.from(tagStr, 'base64url');
+            const key = this.getEncryptionKey();
+
+            const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+            decipher.setAuthTag(authTag);
+            let decrypted = decipher.update(ciphertext, 'base64url', 'utf8');
+            decrypted += decipher.final('utf8');
+
+            const payload: TokenPayload = JSON.parse(decrypted);
+            if (payload.exp < nowSec) {
+              throw new UnauthorizedException('Token has expired');
+            }
+            return payload;
+          }
+        }
+
+        // Fallback for unencrypted legacy payload
+        if (parsedBody.exp && parsedBody.exp < nowSec) {
+          throw new UnauthorizedException('Token has expired');
+        }
+        if (parsedBody.sub && parsedBody.email) {
+          return parsedBody as TokenPayload;
+        }
+      }
+    } catch (err) {
+      if (err instanceof UnauthorizedException) throw err;
+    }
+
+    // 2. Direct AES-256-GCM Encrypted Token (iv.ciphertext.authTag)
     try {
       const iv = Buffer.from(part1, 'base64url');
       const authTag = Buffer.from(part3, 'base64url');
@@ -93,39 +159,32 @@ export class CryptoService {
         return payload;
       }
     } catch (err) {
-      if (err instanceof UnauthorizedException) {
-        throw err;
-      }
-      // If AES decryption failed, proceed to test legacy HMAC fallback
-    }
-
-    // 2. Legacy Fallback: HMAC-SHA256 Signed Token
-    try {
-      const expectedSignature = crypto
-        .createHmac('sha256', this.secret)
-        .update(`${part1}.${part2}`)
-        .digest('base64url');
-
-      if (
-        part3.length === expectedSignature.length &&
-        crypto.timingSafeEqual(Buffer.from(part3), Buffer.from(expectedSignature))
-      ) {
-        const payload: TokenPayload = JSON.parse(Buffer.from(part2, 'base64url').toString('utf8'));
-        if (payload.exp < nowSec) {
-          throw new UnauthorizedException('Token has expired');
-        }
-        return payload;
-      }
-    } catch {
-      // Legacy fallback also failed
+      if (err instanceof UnauthorizedException) throw err;
     }
 
     throw new UnauthorizedException('Invalid or unauthenticated token');
   }
 
-  // Generate random refresh token string
-  generateRefreshTokenString(): string {
-    return crypto.randomBytes(40).toString('hex');
+  // Generate Refresh Token in standard JWT format (Header + Payload + Signature)
+  generateRefreshTokenString(user?: { id?: number; role?: string }): string {
+    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+    const nowSec = Math.floor(Date.now() / 1000);
+    const payload = Buffer.from(
+      JSON.stringify({
+        sub: user?.id || 0,
+        role: user?.role || 'user',
+        type: 'refresh',
+        jti: crypto.randomBytes(16).toString('hex'),
+        exp: nowSec + 2 * 24 * 60 * 60, // 2 days
+      }),
+    ).toString('base64url');
+
+    const signature = crypto
+      .createHmac('sha256', this.secret)
+      .update(`${header}.${payload}`)
+      .digest('base64url');
+
+    return `${header}.${payload}.${signature}`;
   }
 
   // Hash refresh token for DB storage

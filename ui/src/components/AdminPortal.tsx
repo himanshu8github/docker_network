@@ -21,10 +21,25 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [adminPassword, setAdminPassword] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
 
+  // Tab pagination states
+  const [streamPage, setStreamPage] = useState(1);
+  const [usersPage, setUsersPage] = useState(1);
+  const [visitsPage, setVisitsPage] = useState(1);
+
   // Dashboard data state
   const [metrics, setMetrics] = useState<any>(null);
-  const [users, setUsers] = useState<any[]>([]);
-  const [visitsData, setVisitsData] = useState<any>(null);
+  const [usersData, setUsersData] = useState<{ items: any[]; total: number; page: number; totalPages: number }>({
+    items: [],
+    total: 0,
+    page: 1,
+    totalPages: 1,
+  });
+  const [visitsData, setVisitsData] = useState<{ items: any[]; total: number; page: number; totalPages: number }>({
+    items: [],
+    total: 0,
+    page: 1,
+    totalPages: 1,
+  });
   const [refreshing, setRefreshing] = useState(false);
 
   // Check saved admin token
@@ -33,73 +48,97 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     if (saved) setAdminToken(saved);
   }, []);
 
-  // Fetch Dashboard Metrics (Protected)
-  const fetchMetrics = useCallback(async () => {
-    if (!adminToken) return;
-    setRefreshing(true);
-    try {
-      const res = await fetch(`${apiUrl}/dashboard/metrics`, {
-        headers: { Authorization: `Bearer ${adminToken}` },
-      });
-      if (res.status === 401 || res.status === 403) {
-        setAdminToken(null);
-        localStorage.removeItem('cloudops_admin_token');
-        addToast('error', 'Admin session expired. Please sign in again.');
-        return;
+  // Fetch Dashboard Metrics & Stream (Protected)
+  const fetchMetrics = useCallback(
+    async (page = streamPage) => {
+      if (!adminToken) return;
+      setRefreshing(true);
+      try {
+        const res = await fetch(`${apiUrl}/dashboard/metrics?page=${page}&limit=10`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+        if (res.status === 401 || res.status === 403) {
+          setAdminToken(null);
+          localStorage.removeItem('cloudops_admin_token');
+          addToast('error', 'Admin session expired. Please sign in again.');
+          return;
+        }
+        if (res.ok) {
+          const data = await res.json();
+          setMetrics(data);
+        }
+      } catch {
+        // Background poll failure
+      } finally {
+        setRefreshing(false);
       }
-      if (res.ok) {
-        const data = await res.json();
-        setMetrics(data);
-      }
-    } catch {
-      // Background poll failure
-    } finally {
-      setRefreshing(false);
-    }
-  }, [adminToken, apiUrl, addToast]);
+    },
+    [adminToken, apiUrl, streamPage, addToast],
+  );
 
   // Fetch Users Directory (Protected)
-  const fetchUsers = useCallback(async () => {
-    if (!adminToken) return;
-    try {
-      const res = await fetch(`${apiUrl}/dashboard/users`, {
-        headers: { Authorization: `Bearer ${adminToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setUsers(data);
+  const fetchUsers = useCallback(
+    async (page = usersPage) => {
+      if (!adminToken) return;
+      try {
+        const res = await fetch(`${apiUrl}/dashboard/users?page=${page}&limit=10`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setUsersData(data);
+        }
+      } catch {
+        // Silent error
       }
-    } catch {
-      // Silent error
-    }
-  }, [adminToken, apiUrl]);
+    },
+    [adminToken, apiUrl, usersPage],
+  );
 
   // Fetch Visits Analytics (Protected)
-  const fetchVisits = useCallback(async () => {
-    if (!adminToken) return;
-    try {
-      const res = await fetch(`${apiUrl}/dashboard/visits`, {
-        headers: { Authorization: `Bearer ${adminToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setVisitsData(data);
+  const fetchVisits = useCallback(
+    async (page = visitsPage) => {
+      if (!adminToken) return;
+      try {
+        const res = await fetch(`${apiUrl}/dashboard/visits?page=${page}&limit=10`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setVisitsData(data);
+        }
+      } catch {
+        // Silent error
       }
-    } catch {
-      // Silent error
-    }
-  }, [adminToken, apiUrl]);
+    },
+    [adminToken, apiUrl, visitsPage],
+  );
 
   useEffect(() => {
     if (adminToken) {
-      fetchMetrics();
-      fetchUsers();
-      fetchVisits();
-      // Auto-refresh metrics every 5 seconds for live stream!
-      const interval = setInterval(fetchMetrics, 5000);
+      fetchMetrics(streamPage);
+    }
+  }, [adminToken, streamPage, fetchMetrics]);
+
+  useEffect(() => {
+    if (adminToken) {
+      fetchUsers(usersPage);
+    }
+  }, [adminToken, usersPage, fetchUsers]);
+
+  useEffect(() => {
+    if (adminToken) {
+      fetchVisits(visitsPage);
+    }
+  }, [adminToken, visitsPage, fetchVisits]);
+
+  // Periodic polling for live stream on page 1 only
+  useEffect(() => {
+    if (adminToken && streamPage === 1) {
+      const interval = setInterval(() => fetchMetrics(1), 5000);
       return () => clearInterval(interval);
     }
-  }, [adminToken, fetchMetrics, fetchUsers, fetchVisits]);
+  }, [adminToken, streamPage, fetchMetrics]);
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -233,10 +272,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             className={`admin-tab-btn ${activeTab === 'users' ? 'active' : ''}`}
             onClick={() => {
               setActiveTab('users');
-              fetchUsers();
+              fetchUsers(usersPage);
             }}
           >
-            👥 Users Directory ({users.length})
+            👥 Users Directory ({usersData.total})
           </button>
           <button
             className={`admin-tab-btn ${activeTab === 'visits' ? 'active' : ''}`}
@@ -253,7 +292,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           <button
             className="btn-page"
             style={{ backgroundColor: '#141d2f', color: '#94a3b8', borderColor: '#1f2c44', fontSize: '12px' }}
-            onClick={fetchMetrics}
+            onClick={() => fetchMetrics(streamPage)}
           >
             {refreshing ? '↻ Syncing...' : '↻ Refresh'}
           </button>
@@ -319,188 +358,289 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         </div>
 
         {/* TAB 1: Live Ingress Stream */}
-        {activeTab === 'stream' && (
-          <div className="dark-panel-box">
-            <div className="dark-panel-header">
-              <div>
-                <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Real-Time Ingress Request Stream</h3>
-                <p style={{ fontSize: '12px', color: 'var(--dark-text-dim)', marginTop: '2px' }}>
-                  Live feed of HTTP requests forwarded through Nginx and Cloudflare to NestJS (0 hardcoded data)
-                </p>
-              </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <span className="badge-method GET">2xx: {metrics ? metrics.counters.status2xx : 0}</span>
-                <span className="badge-method DELETE">4xx: {metrics ? metrics.counters.status4xx : 0}</span>
-              </div>
-            </div>
+        {activeTab === 'stream' && (() => {
+          const streamItems = Array.isArray(metrics?.liveStream)
+            ? metrics.liveStream
+            : (metrics?.liveStream?.items || []);
+          const streamTotal = metrics?.liveStream?.total ?? streamItems.length;
+          const streamTotalPages = metrics?.liveStream?.totalPages ?? 1;
 
-            <div style={{ overflowX: 'auto' }}>
-              <table className="dark-table">
-                <thead>
-                  <tr>
-                    <th>METHOD</th>
-                    <th>ENDPOINT / ROUTE</th>
-                    <th>STATUS</th>
-                    <th>LATENCY</th>
-                    <th>CLOUDFLARE RAY</th>
-                    <th>CLIENT IP</th>
-                    <th>TIME</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {!metrics || metrics.liveStream.length === 0 ? (
+          return (
+            <div className="dark-panel-box">
+              <div className="dark-panel-header">
+                <div>
+                  <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Real-Time Ingress Request Stream</h3>
+                  <p style={{ fontSize: '12px', color: 'var(--dark-text-dim)', marginTop: '2px' }}>
+                    Live feed of HTTP requests saved persistently in MySQL (Total: {streamTotal} requests tracked across restarts)
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <span className="badge-method GET">2xx: {metrics ? metrics.counters.status2xx : 0}</span>
+                  <span className="badge-method DELETE">4xx: {metrics ? metrics.counters.status4xx : 0}</span>
+                </div>
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table className="dark-table">
+                  <thead>
                     <tr>
-                      <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--dark-text-dim)' }}>
-                        No incoming requests recorded yet. Use the public blog to generate real traffic!
-                      </td>
+                      <th>METHOD</th>
+                      <th>ENDPOINT / ROUTE</th>
+                      <th>STATUS</th>
+                      <th>LATENCY</th>
+                      <th>CLOUDFLARE RAY</th>
+                      <th>CLIENT IP</th>
+                      <th>TIME</th>
                     </tr>
-                  ) : (
-                    metrics.liveStream.map((log: any) => (
-                      <tr key={log.id}>
-                        <td>
-                          <span className={`badge-method ${log.method}`}>{log.method}</span>
-                        </td>
-                        <td style={{ color: '#f8fafc', fontWeight: 500 }}>{log.url}</td>
-                        <td>
-                          <span style={{ color: log.statusCode < 400 ? '#10b981' : '#f43f5e', fontWeight: 700 }}>
-                            {log.statusCode}
-                          </span>
-                        </td>
-                        <td style={{ color: '#38bdf8' }}>{log.durationMs} ms</td>
-                        <td style={{ color: '#a78bfa' }}>{log.cfRay}</td>
-                        <td style={{ color: '#94a3b8' }}>{log.clientIp}</td>
-                        <td style={{ color: '#64748b' }}>
-                          {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </thead>
+                  <tbody>
+                    {streamItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--dark-text-dim)' }}>
+                          No incoming requests recorded yet. Use the public blog to generate real traffic!
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : (
+                      streamItems.map((log: any) => (
+                        <tr key={log.id}>
+                          <td>
+                            <span className={`badge-method ${log.method}`}>{log.method}</span>
+                          </td>
+                          <td style={{ color: '#f8fafc', fontWeight: 500 }}>{log.url}</td>
+                          <td>
+                            <span style={{ color: log.statusCode < 400 ? '#10b981' : '#f43f5e', fontWeight: 700 }}>
+                              {log.statusCode}
+                            </span>
+                          </td>
+                          <td style={{ color: '#38bdf8' }}>{log.durationMs} ms</td>
+                          <td style={{ color: '#a78bfa' }}>{log.cfRay}</td>
+                          <td style={{ color: '#94a3b8' }}>{log.clientIp}</td>
+                          <td style={{ color: '#64748b' }}>
+                            {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Stream Pagination */}
+              {streamTotalPages > 1 && (
+                <div className="pagination-wrap" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '18px', padding: '0 4px' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--dark-text-dim)' }}>
+                    Page {streamPage} of {streamTotalPages} ({streamTotal} total requests in MySQL)
+                  </span>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      className="btn-page"
+                      style={{ backgroundColor: '#141d2f', color: '#94a3b8', borderColor: '#1f2c44', fontSize: '12px' }}
+                      onClick={() => setStreamPage((p) => Math.max(1, p - 1))}
+                      disabled={streamPage === 1}
+                    >
+                      ← Previous
+                    </button>
+                    <button
+                      className="btn-page"
+                      style={{ backgroundColor: '#141d2f', color: '#94a3b8', borderColor: '#1f2c44', fontSize: '12px' }}
+                      onClick={() => setStreamPage((p) => Math.min(streamTotalPages, p + 1))}
+                      disabled={streamPage >= streamTotalPages}
+                    >
+                      Next →
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* TAB 2: Users Directory */}
-        {activeTab === 'users' && (
-          <div className="dark-panel-box">
-            <div className="dark-panel-header">
-              <div>
-                <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Registered Users Directory</h3>
-                <p style={{ fontSize: '12px', color: 'var(--dark-text-dim)', marginTop: '2px' }}>
-                  Audited accounts saved in MySQL with role attribution and total published articles
-                </p>
-              </div>
-            </div>
+        {activeTab === 'users' && (() => {
+          const userItems = usersData?.items || [];
+          const usersTotal = usersData?.total ?? userItems.length;
+          const usersTotalPages = usersData?.totalPages ?? 1;
 
-            <div style={{ overflowX: 'auto' }}>
-              <table className="dark-table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>USERNAME</th>
-                    <th>EMAIL ADDRESS</th>
-                    <th>ROLE</th>
-                    <th>ARTICLES POSTED</th>
-                    <th>REGISTERED DATE</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.length === 0 ? (
+          return (
+            <div className="dark-panel-box">
+              <div className="dark-panel-header">
+                <div>
+                  <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Registered Users Directory</h3>
+                  <p style={{ fontSize: '12px', color: 'var(--dark-text-dim)', marginTop: '2px' }}>
+                    Audited accounts saved in MySQL ({usersTotal} total registered accounts)
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table className="dark-table">
+                  <thead>
                     <tr>
-                      <td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: 'var(--dark-text-dim)' }}>
-                        No registered users in database yet.
-                      </td>
+                      <th>ID</th>
+                      <th>USERNAME</th>
+                      <th>EMAIL ADDRESS</th>
+                      <th>ROLE</th>
+                      <th>ARTICLES POSTED</th>
+                      <th>REGISTERED DATE</th>
                     </tr>
-                  ) : (
-                    users.map((u) => (
-                      <tr key={u.id}>
-                        <td>#{u.id}</td>
-                        <td style={{ color: '#f8fafc', fontWeight: 600 }}>@{u.username}</td>
-                        <td>{u.email}</td>
-                        <td>
-                          <span
-                            className="badge-method"
-                            style={{
-                              backgroundColor: u.role === 'admin' ? 'rgba(139, 92, 246, 0.2)' : 'rgba(56, 189, 248, 0.2)',
-                              color: u.role === 'admin' ? '#a78bfa' : '#38bdf8',
-                              border: 'none',
-                            }}
-                          >
-                            {u.role.toUpperCase()}
-                          </span>
-                        </td>
-                        <td style={{ color: '#10b981', fontWeight: 700 }}>{u.blogsCount} blogs</td>
-                        <td style={{ color: '#64748b' }}>
-                          {new Date(u.registeredAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </thead>
+                  <tbody>
+                    {userItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: 'var(--dark-text-dim)' }}>
+                          No registered users in database yet.
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : (
+                      userItems.map((u: any) => (
+                        <tr key={u.id}>
+                          <td>#{u.id}</td>
+                          <td style={{ color: '#f8fafc', fontWeight: 600 }}>@{u.username}</td>
+                          <td>{u.email}</td>
+                          <td>
+                            <span
+                              className="badge-method"
+                              style={{
+                                backgroundColor: u.role === 'admin' ? 'rgba(139, 92, 246, 0.2)' : 'rgba(56, 189, 248, 0.2)',
+                                color: u.role === 'admin' ? '#a78bfa' : '#38bdf8',
+                                border: 'none',
+                              }}
+                            >
+                              {u.role.toUpperCase()}
+                            </span>
+                          </td>
+                          <td style={{ color: '#10b981', fontWeight: 700 }}>{u.blogsCount} blogs</td>
+                          <td style={{ color: '#64748b' }}>
+                            {new Date(u.registeredAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Users Pagination */}
+              {usersTotalPages > 1 && (
+                <div className="pagination-wrap" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '18px', padding: '0 4px' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--dark-text-dim)' }}>
+                    Page {usersPage} of {usersTotalPages} ({usersTotal} registered users)
+                  </span>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      className="btn-page"
+                      style={{ backgroundColor: '#141d2f', color: '#94a3b8', borderColor: '#1f2c44', fontSize: '12px' }}
+                      onClick={() => setUsersPage((p) => Math.max(1, p - 1))}
+                      disabled={usersPage === 1}
+                    >
+                      ← Previous
+                    </button>
+                    <button
+                      className="btn-page"
+                      style={{ backgroundColor: '#141d2f', color: '#94a3b8', borderColor: '#1f2c44', fontSize: '12px' }}
+                      onClick={() => setUsersPage((p) => Math.min(usersTotalPages, p + 1))}
+                      disabled={usersPage >= usersTotalPages}
+                    >
+                      Next →
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* TAB 3: Visit Analytics */}
-        {activeTab === 'visits' && (
-          <div className="dark-panel-box">
-            <div className="dark-panel-header">
-              <div>
-                <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Page Visits & Edge Analytics</h3>
-                <p style={{ fontSize: '12px', color: 'var(--dark-text-dim)', marginTop: '2px' }}>
-                  Total Visits Tracked: <strong style={{ color: '#38bdf8' }}>{visitsData ? visitsData.totalVisits : 0}</strong>
-                </p>
-              </div>
-            </div>
+        {activeTab === 'visits' && (() => {
+          const visitItems = visitsData?.items || [];
+          const visitsTotal = visitsData?.total ?? visitItems.length;
+          const visitsTotalPages = visitsData?.totalPages ?? 1;
 
-            <div style={{ overflowX: 'auto' }}>
-              <table className="dark-table">
-                <thead>
-                  <tr>
-                    <th>VISIT ID</th>
-                    <th>ENDPOINT</th>
-                    <th>VISITOR IP</th>
-                    <th>COUNTRY</th>
-                    <th>CLOUDFLARE RAY</th>
-                    <th>TIMESTAMP</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {!visitsData || visitsData.recentVisits.length === 0 ? (
+          return (
+            <div className="dark-panel-box">
+              <div className="dark-panel-header">
+                <div>
+                  <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Page Visits & Edge Analytics</h3>
+                  <p style={{ fontSize: '12px', color: 'var(--dark-text-dim)', marginTop: '2px' }}>
+                    Total Visits Tracked: <strong style={{ color: '#38bdf8' }}>{visitsTotal}</strong>
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table className="dark-table">
+                  <thead>
                     <tr>
-                      <td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: 'var(--dark-text-dim)' }}>
-                        No page visits recorded yet.
-                      </td>
+                      <th>VISIT ID</th>
+                      <th>ENDPOINT</th>
+                      <th>VISITOR IP</th>
+                      <th>COUNTRY</th>
+                      <th>CLOUDFLARE RAY</th>
+                      <th>TIMESTAMP</th>
                     </tr>
-                  ) : (
-                    visitsData.recentVisits.map((v: any) => (
-                      <tr key={v.id}>
-                        <td>#{v.id}</td>
-                        <td style={{ color: '#f8fafc', fontWeight: 500 }}>{v.endpoint}</td>
-                        <td>{v.clientIp}</td>
-                        <td>
-                          <span style={{ color: '#fb923c', fontWeight: 600 }}>{v.country}</span>
-                        </td>
-                        <td style={{ color: '#a78bfa' }}>{v.cfRay}</td>
-                        <td style={{ color: '#64748b' }}>
-                          {new Date(v.createdAt).toLocaleString([], {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit',
-                          })}
+                  </thead>
+                  <tbody>
+                    {visitItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} style={{ textAlign: 'center', padding: '40px', color: 'var(--dark-text-dim)' }}>
+                          No page visits recorded yet.
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : (
+                      visitItems.map((v: any) => (
+                        <tr key={v.id}>
+                          <td>#{v.id}</td>
+                          <td style={{ color: '#f8fafc', fontWeight: 500 }}>{v.endpoint}</td>
+                          <td>{v.clientIp}</td>
+                          <td>
+                            <span style={{ color: '#fb923c', fontWeight: 600 }}>{v.country}</span>
+                          </td>
+                          <td style={{ color: '#a78bfa' }}>{v.cfRay}</td>
+                          <td style={{ color: '#64748b' }}>
+                            {new Date(v.createdAt).toLocaleString([], {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit',
+                            })}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Visits Pagination */}
+              {visitsTotalPages > 1 && (
+                <div className="pagination-wrap" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '18px', padding: '0 4px' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--dark-text-dim)' }}>
+                    Page {visitsPage} of {visitsTotalPages} ({visitsTotal} total visits)
+                  </span>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      className="btn-page"
+                      style={{ backgroundColor: '#141d2f', color: '#94a3b8', borderColor: '#1f2c44', fontSize: '12px' }}
+                      onClick={() => setVisitsPage((p) => Math.max(1, p - 1))}
+                      disabled={visitsPage === 1}
+                    >
+                      ← Previous
+                    </button>
+                    <button
+                      className="btn-page"
+                      style={{ backgroundColor: '#141d2f', color: '#94a3b8', borderColor: '#1f2c44', fontSize: '12px' }}
+                      onClick={() => setVisitsPage((p) => Math.min(visitsTotalPages, p + 1))}
+                      disabled={visitsPage >= visitsTotalPages}
+                    >
+                      Next →
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
       </main>
     </div>
   );

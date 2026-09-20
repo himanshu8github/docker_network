@@ -14,7 +14,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   addToast,
 }) => {
   const [adminToken, setAdminToken] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'stream' | 'users' | 'visits'>('stream');
+  const [activeTab, setActiveTab] = useState<'stream' | 'users' | 'visits' | 'health'>('stream');
 
   // Login form state
   const [adminEmail, setAdminEmail] = useState('');
@@ -285,6 +285,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             }}
           >
             🌐 Visit Analytics
+          </button>
+          <button
+            className={`admin-tab-btn ${activeTab === 'health' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveTab('health');
+              fetchMetrics(streamPage);
+            }}
+          >
+            🖥️ Topology & Server Health
           </button>
         </div>
 

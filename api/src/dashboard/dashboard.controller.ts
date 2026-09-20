@@ -17,6 +17,11 @@ export class DashboardController {
     return this.dashboardService.getMetrics(req.headers, page, limit);
   }
 
+  @Get('system-health')
+  getSystemHealth() {
+    return this.dashboardService.getSystemHealth();
+  }
+
   @Get('users')
   getUsersDirectory(
     @Query('page') page?: number,

@@ -10,6 +10,7 @@ import { AdminModule } from './admin/admin.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { BlogsModule } from './blogs/blogs.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { HealthModule } from './health/health.module';
 import { RequestLoggerMiddleware } from './common/request-logger.middleware';
 
 @Module({
@@ -21,6 +22,7 @@ import { RequestLoggerMiddleware } from './common/request-logger.middleware';
     DashboardModule,
     BlogsModule,
     AnalyticsModule,
+    HealthModule,
   ],
 })
 export class AppModule implements NestModule {

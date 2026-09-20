@@ -18,6 +18,13 @@ async function bootstrap() {
     }),
   );
 
+  // Enable CORS for Next.js frontend (local dev & production custom domains)
+  app.enableCors({
+    origin: true, // Allow all origins in dev, or specific domain in production
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    credentials: true,
+  });
+
   const configService = app.get(AppConfigService);
   const port = configService.port;
 

@@ -1,24 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Message Board</title>
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
   <div class="container">
     <h1>Message Board</h1>
 
     <form id="message-form">
       <div class="input-group">
-        <input 
-          type="text" 
-          id="message-input" 
-          placeholder="Enter your message" 
-          required 
-          autocomplete="off"
-        />
+        <input type="text" id="message-input" placeholder="Enter your message" required autocomplete="off" />
         <button type="submit" id="send-button">Send Message</button>
       </div>
       <p id="form-feedback" class="feedback"></p>
@@ -34,4 +30,5 @@
 
   <script src="app.js"></script>
 </body>
+
 </html>

@@ -1,6 +1,12 @@
-# Compiled output
-/dist
+# Dependencies & Compiled output
 /node_modules
+/dist
+/api/node_modules
+/api/dist
+/ui/node_modules
+/ui/.next
+/ui/out
+/ui/dist
 
 # Logs
 logs
@@ -25,7 +31,15 @@ Thumbs.db
 .env.local
 .env.*.local
 *.env
-example.env
+**/.env
+**/.env.*
+api/.env
+api/*.env
+ui/.env
+ui/*.env
+!example.env
+!api/example.env
+!ui/example.env
 
 # Learning & Architecture Notes
 configure.md

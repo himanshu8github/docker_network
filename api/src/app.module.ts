@@ -2,45 +2,29 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 dotenv.config({ path: 'example.env' });
 
-import { Module, NestModule, MiddlewareConsumer, Logger } from '@nestjs/common';
-import { Request, Response, NextFunction } from 'express';
-import { ServeStaticModule } from '@nestjs/serve-static';
-import { join } from 'path';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { AppConfigModule } from './config/config.module';
 import { SqlDbModule } from './database/sqldb.module';
-import { MessagesModule } from './messages/messages.module';
+import { AuthModule } from './auth/auth.module';
+import { AdminModule } from './admin/admin.module';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { BlogsModule } from './blogs/blogs.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { RequestLoggerMiddleware } from './common/request-logger.middleware';
 
 @Module({
   imports: [
     AppConfigModule,
     SqlDbModule,
-
-    // Serve static frontend assets from public/
-    ServeStaticModule.forRoot({
-      rootPath: join(process.cwd(), 'public'),
-      exclude: ['/messages*'],
-    }),
-
-    MessagesModule,
+    AuthModule,
+    AdminModule,
+    DashboardModule,
+    BlogsModule,
+    AnalyticsModule,
   ],
 })
 export class AppModule implements NestModule {
-  private readonly logger = new Logger('HTTP');
-
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply((req: Request, res: Response, next: NextFunction) => {
-        const { method, originalUrl } = req;
-        const start = Date.now();
-
-        res.on('finish', () => {
-          const { statusCode } = res;
-          const duration = Date.now() - start;
-          this.logger.log(`${method} ${originalUrl} ${statusCode} - ${duration}ms`);
-        });
-
-        next();
-      })
-      .forRoutes('*'); // Captures every route, including 404s
+    consumer.apply(RequestLoggerMiddleware).forRoutes('*');
   }
 }

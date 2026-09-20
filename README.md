@@ -79,7 +79,7 @@ Visitor (https://yourdomain.tech)           Admin (https://dashboard.yourdomain.
   * Articles require 100–1,500 characters of high-quality technical content.
   * Strict anti-abuse filter: Emojis (`\p{Extended_Pictographic}`) and image tags (`<img`, `![]()`, `data:image`) are prohibited to maintain clean engineering copy.
 * **User Authentication**:
-  * Native Node.js `crypto` HMAC-SHA256 signed access tokens (2-hour expiry) and persistent refresh tokens (2-day expiry).
+  * Native Node.js `crypto` **AES-256-GCM encrypted tokens** (ciphertext payload that cannot be decoded on jwt.io without the server key) and persistent refresh tokens.
   * Real-time **Bloom Filter** username lookup to immediately detect collisions before database querying.
 
 ### 🛡️ Admin Observability & Telemetry Console (Port 3002)

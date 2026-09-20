@@ -17,7 +17,7 @@ export const CustomToast: React.FC<CustomToastProps> = ({ toasts, onDismiss }) =
   if (toasts.length === 0) return null;
 
   return (
-    <div className="toast-container">
+    <div className="toast-box">
       {toasts.map((toast) => {
         const icon =
           toast.type === 'success' ? '✅' : toast.type === 'error' ? '❌' : 'ℹ️';
@@ -25,7 +25,7 @@ export const CustomToast: React.FC<CustomToastProps> = ({ toasts, onDismiss }) =
         return (
           <div
             key={toast.id}
-            className={`toast ${toast.type}`}
+            className={`app-toast ${toast.type}`}
             onClick={() => onDismiss(toast.id)}
           >
             <span>{icon}</span>

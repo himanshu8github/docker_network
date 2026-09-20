@@ -1,0 +1,14 @@
+node_modules
+dist
+.next
+.git
+.env
+.env.*
+*.env
+example.env
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.vscode
+.idea

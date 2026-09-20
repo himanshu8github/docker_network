@@ -143,15 +143,17 @@ export default function App() {
         {/* Top Header Bar */}
         <header className="blog-header">
           <div className="brand-section">
-            <div className="brand-badge">C</div>
+            <div className="brand-badge" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%)', color: '#ffffff', fontWeight: 800 }}>G</div>
             <div className="brand-text">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h1 style={{ margin: 0 }}>CloudOps.tech</h1>
+                <h1 style={{ margin: 0, letterSpacing: '-0.02em' }}>
+                  GradMetric<span style={{ color: '#7c3aed', fontWeight: 600 }}>.me</span>
+                </h1>
                 <span className="total-blogs-pill" title="Total articles on platform">
                   ⚡ {totalBlogs} {totalBlogs === 1 ? 'Article' : 'Articles'}
                 </span>
               </div>
-              <p style={{ margin: '2px 0 0' }}>Community Engineering & Cloud Insights</p>
+              <p style={{ margin: '2px 0 0' }}>CloudOps Community & Engineering Insights</p>
             </div>
           </div>
 

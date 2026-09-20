@@ -179,7 +179,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           <div className="modal-card-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ fontSize: '20px' }}>🛡️</span>
-              <h3 style={{ fontSize: '16px', fontWeight: 700 }}>Admin Observability Gate</h3>
+              <h3 style={{ fontSize: '16px', fontWeight: 700 }}>GradMetric Admin Gate</h3>
             </div>
             <button
               style={{ background: 'none', border: 'none', color: 'var(--dark-text-dim)', fontSize: '13px', cursor: 'pointer' }}
@@ -253,9 +253,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         <div className="admin-brand">
           <div className="admin-badge-icon">⚡</div>
           <div>
-            <h2>CloudOps <span>Telemetry</span></h2>
+            <h2>GradMetric <span>CloudOps</span></h2>
             <p style={{ fontSize: '11px', color: 'var(--dark-text-dim)', letterSpacing: '0.05em' }}>
-              ADMIN OBSERVABILITY CONSOLE • 100% LIVE
+              logs.gradmetric.me • OBSERVABILITY & TELEMETRY CONSOLE
             </p>
           </div>
         </div>
@@ -647,6 +647,218 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   </div>
                 </div>
               )}
+            </div>
+          );
+        })()}
+
+        {/* TAB 4: Topology & Server Health */}
+        {activeTab === 'health' && (() => {
+          const host = metrics?.systemHealth?.host;
+          const services = metrics?.systemHealth?.services || [];
+
+          return (
+            <div>
+              {/* Host Hardware Telemetry Grid */}
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '18px' }}>🖥️</span>
+                    <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--dark-text-main)' }}>
+                      AWS EC2 Host Server Hardware Telemetry
+                    </h3>
+                  </div>
+                  <span style={{ fontSize: '12px', color: 'var(--dark-text-dim)', backgroundColor: '#141d2f', padding: '4px 10px', borderRadius: '6px', border: '1px solid #1f2c44' }}>
+                    Platform: {host?.platform || 'Linux x64'} • {host?.cpuCores || 1} vCPU
+                  </span>
+                </div>
+
+                <div className="dark-stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px', marginBottom: '0' }}>
+                  {/* CPU Card */}
+                  <div className="dark-stat-card">
+                    <div className="dark-stat-header">EC2 CPU UTILIZATION</div>
+                    <div className="dark-stat-val" style={{ color: '#06b6d4', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                      {host?.cpuLoadPercent ?? 0}%
+                      <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--dark-text-muted)' }}>
+                        ({host?.cpuCores || 1} Cores)
+                      </span>
+                    </div>
+                    {/* CPU Progress Bar */}
+                    <div style={{ width: '100%', height: '6px', backgroundColor: '#1e293b', borderRadius: '3px', marginTop: '10px', overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          width: `${Math.min(100, Math.max(5, host?.cpuLoadPercent ?? 10))}%`,
+                          height: '100%',
+                          background: 'linear-gradient(90deg, #06b6d4, #3b82f6)',
+                          borderRadius: '3px',
+                          transition: 'width 0.5s ease',
+                        }}
+                      />
+                    </div>
+                    <div className="dark-stat-sub" style={{ marginTop: '8px' }}>
+                      Load Avg: {host?.loadAvg ? host.loadAvg.join(' · ') : '0.10 · 0.15 · 0.12'}
+                    </div>
+                  </div>
+
+                  {/* RAM Card */}
+                  <div className="dark-stat-card">
+                    <div className="dark-stat-header">EC2 HOST MEMORY (RAM)</div>
+                    <div className="dark-stat-val" style={{ color: '#10b981', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                      {host?.usedMemMb ?? 0} MB
+                      <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--dark-text-muted)' }}>
+                        / {host?.totalMemMb ?? 1024} MB ({host?.memPercent ?? 0}%)
+                      </span>
+                    </div>
+                    {/* RAM Progress Bar */}
+                    <div style={{ width: '100%', height: '6px', backgroundColor: '#1e293b', borderRadius: '3px', marginTop: '10px', overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          width: `${Math.min(100, Math.max(5, parseFloat(host?.memPercent || '20')))}%`,
+                          height: '100%',
+                          background: 'linear-gradient(90deg, #10b981, #14b8a6)',
+                          borderRadius: '3px',
+                          transition: 'width 0.5s ease',
+                        }}
+                      />
+                    </div>
+                    <div className="dark-stat-sub" style={{ marginTop: '8px' }}>
+                      Free RAM: {host?.freeMemMb ?? 0} MB • Node RSS: {metrics?.overview?.memoryRssMb ?? 0} MB
+                    </div>
+                  </div>
+
+                  {/* Uptime Card */}
+                  <div className="dark-stat-card">
+                    <div className="dark-stat-header">SERVER UPTIME</div>
+                    <div className="dark-stat-val" style={{ color: '#a855f7' }}>
+                      {host?.hostUptimeFormatted || '0h 0m'}
+                    </div>
+                    <div className="dark-stat-sub" style={{ marginTop: '10px' }}>
+                      Process Uptime: {metrics?.systemHealth?.processUptimeFormatted || metrics?.overview?.uptimeFormatted}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Docker Microservice Topology & Health Grid */}
+              <div className="dark-panel-box" style={{ marginBottom: '24px' }}>
+                <div className="dark-panel-header">
+                  <div>
+                    <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Docker Container & Service Health Matrix</h3>
+                    <p style={{ fontSize: '12px', color: 'var(--dark-text-dim)', marginTop: '2px' }}>
+                      Real-time internal probes across Docker bridge network (app-net) for all 5 decoupled microservices
+                    </p>
+                  </div>
+                  <span style={{ fontSize: '12px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block', boxShadow: '0 0 8px #10b981' }} />
+                    Live Polling (5s)
+                  </span>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="dark-table">
+                    <thead>
+                      <tr>
+                        <th>MICROSERVICE</th>
+                        <th>ROLE & PURPOSE</th>
+                        <th>TARGET INGRESS / PORT</th>
+                        <th>HEALTH STATUS</th>
+                        <th>LATENCY</th>
+                        <th>DIAGNOSTICS & DETAILS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {services.map((svc: any) => {
+                        const isHealthy = svc.status === 'healthy';
+                        const isDegraded = svc.status === 'degraded';
+
+                        return (
+                          <tr key={svc.id}>
+                            <td style={{ fontWeight: 600, color: 'var(--dark-text-main)' }}>
+                              {svc.id === 'mysql' && '🗄️ '}
+                              {svc.id === 'nestjs-app' && '⚙️ '}
+                              {svc.id === 'ui-user' && '🌐 '}
+                              {svc.id === 'ui-admin' && '🛡️ '}
+                              {svc.id === 'nginx-proxy' && '🔀 '}
+                              {svc.name}
+                            </td>
+                            <td style={{ color: 'var(--dark-text-muted)', fontSize: '12px' }}>{svc.role}</td>
+                            <td className="mono" style={{ fontSize: '12px', color: '#38bdf8' }}>{svc.endpoint}</td>
+                            <td>
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  padding: '4px 10px',
+                                  borderRadius: '20px',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.04em',
+                                  backgroundColor: isHealthy ? 'rgba(16, 185, 129, 0.15)' : isDegraded ? 'rgba(245, 158, 11, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                                  color: isHealthy ? '#34d399' : isDegraded ? '#fbbf24' : '#f87171',
+                                  border: `1px solid ${isHealthy ? 'rgba(16, 185, 129, 0.3)' : isDegraded ? 'rgba(245, 158, 11, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    width: '6px',
+                                    height: '6px',
+                                    borderRadius: '50%',
+                                    backgroundColor: isHealthy ? '#10b981' : isDegraded ? '#f59e0b' : '#ef4444',
+                                  }}
+                                />
+                                {isHealthy ? 'ONLINE' : isDegraded ? 'DEGRADED' : 'DOWN'}
+                              </span>
+                            </td>
+                            <td className="mono" style={{ color: isHealthy ? '#10b981' : '#f43f5e', fontWeight: 600 }}>
+                              {svc.latencyMs >= 0 ? `${svc.latencyMs} ms` : 'Timeout'}
+                            </td>
+                            <td style={{ fontSize: '12px', color: 'var(--dark-text-dim)' }}>
+                              {svc.details}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Chaos Testing & Self-Healing Terminal Reference */}
+              <div className="dark-panel-box" style={{ padding: '20px 24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                  <span style={{ fontSize: '16px' }}>⚡</span>
+                  <h4 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--dark-text-main)' }}>
+                    EC2 Chaos Testing & Auto-Healing Verification
+                  </h4>
+                </div>
+                <p style={{ fontSize: '13px', color: 'var(--dark-text-muted)', marginBottom: '14px' }}>
+                  All services use <code style={{ color: '#38bdf8' }}>restart: unless-stopped</code> and Docker engine health checks. Run these commands via SSH on your EC2 instance to test failure and observe automatic self-healing:
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '12px' }}>
+                  <div style={{ backgroundColor: '#0f172a', padding: '12px', borderRadius: '8px', border: '1px solid #1e293b' }}>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px', fontWeight: 600 }}>1. SIMULATE BACKEND CRASH</div>
+                    <code className="mono" style={{ fontSize: '12px', color: '#f43f5e' }}>docker kill nestjs-app</code>
+                    <p style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                      Status turns RED, Docker daemon immediately restarts container within 2s, and status turns GREEN.
+                    </p>
+                  </div>
+                  <div style={{ backgroundColor: '#0f172a', padding: '12px', borderRadius: '8px', border: '1px solid #1e293b' }}>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px', fontWeight: 600 }}>2. SIMULATE DATABASE DOWNTIME</div>
+                    <code className="mono" style={{ fontSize: '12px', color: '#f59e0b' }}>docker stop mysql && sleep 5 && docker start mysql</code>
+                    <p style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                      Database card reports Connection Refused, then auto-reconnects to MySQL volume without data loss.
+                    </p>
+                  </div>
+                  <div style={{ backgroundColor: '#0f172a', padding: '12px', borderRadius: '8px', border: '1px solid #1e293b' }}>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px', fontWeight: 600 }}>3. LIVE TERMINAL MONITORING (CLI)</div>
+                    <code className="mono" style={{ fontSize: '12px', color: '#34d399' }}>docker stats</code>
+                    <p style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                      Streams real-time CPU %, RAM %, and Network I/O for all 5 containers simultaneously in terminal.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           );
         })()}

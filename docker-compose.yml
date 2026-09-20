@@ -19,10 +19,9 @@ services:
       timeout: 5s
       retries: 5
 
-
   nestjs-app:
     build:
-      context: .
+      context: ./api
       dockerfile: Dockerfile
     container_name: nestjs-app
     restart: unless-stopped
@@ -39,6 +38,20 @@ services:
     networks:
       - app-net
 
+  ui-app:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+    container_name: ui-app
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
+    depends_on:
+      - nestjs-app
+    networks:
+      - app-net
 
   nginx-proxy:
     image: nginx:alpine
@@ -50,6 +63,7 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - nestjs-app
+      - ui-app
     networks:
       - app-net
 

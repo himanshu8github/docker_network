@@ -38,25 +38,8 @@ export class AdminService implements OnModuleInit {
       if (!userRole) {
         await this.roleRepository.save({ name: 'user' });
       }
-
-      // Ensure default admin user exists
-      const existingAdmin = await this.userRepository.findOne({
-        where: { email: 'admin@cloudops.tech' },
-      });
-
-      if (!existingAdmin) {
-        const passwordHash = this.cryptoService.hashPassword('Admin123456');
-        await this.userRepository.save({
-          email: 'admin@cloudops.tech',
-          username: 'admin',
-          passwordHash,
-          roleId: adminRole.id,
-          role: adminRole,
-        });
-        console.log('⚡ [Seed] Default Admin Created: admin@cloudops.tech / Admin123456');
-      }
     } catch (err) {
-      console.warn('[Seed] Admin seeding check failed:', err.message);
+      console.warn('[Init] Roles initialization check failed:', err.message);
     }
   }
 

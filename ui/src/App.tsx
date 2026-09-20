@@ -27,10 +27,12 @@ export default function App() {
   const [userToken, setUserToken] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
-  // Modals state
+  // Modals & view state
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isPostOpen, setIsPostOpen] = useState(false);
   const [editingBlog, setEditingBlog] = useState<BlogItem | null>(null);
+  const [readingBlog, setReadingBlog] = useState<BlogItem | null>(null);
+  const [viewMode, setViewMode] = useState<'horizontal' | 'grid'>('horizontal');
 
   // Toast state
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -143,8 +145,13 @@ export default function App() {
           <div className="brand-section">
             <div className="brand-badge">C</div>
             <div className="brand-text">
-              <h1>CloudOps.tech</h1>
-              <p>Community Engineering & Cloud Insights</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h1 style={{ margin: 0 }}>CloudOps.tech</h1>
+                <span className="total-blogs-pill" title="Total articles on platform">
+                  ⚡ {totalBlogs} {totalBlogs === 1 ? 'Article' : 'Articles'}
+                </span>
+              </div>
+              <p style={{ margin: '2px 0 0' }}>Community Engineering & Cloud Insights</p>
             </div>
           </div>
 
@@ -215,23 +222,52 @@ export default function App() {
           </div>
         </header>
 
-        {/* Category Pills */}
-        <div className="category-pills">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              className={`cat-pill ${selectedCategory === cat ? 'active' : ''}`}
-              onClick={() => {
-                setSelectedCategory(cat);
-                setCurrentPage(1);
-              }}
-            >
-              #{cat}
-            </button>
-          ))}
+        {/* Category Filter & Top Stats Bar */}
+        <div className="top-stats-bar">
+          <div className="category-pills">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                className={`cat-pill ${selectedCategory === cat ? 'active' : ''}`}
+                onClick={() => {
+                  setSelectedCategory(cat);
+                  setCurrentPage(1);
+                }}
+              >
+                #{cat}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <div className="stats-indicator">
+              <span style={{ fontSize: '15px' }}>📰</span>
+              <span>Total Articles in Website:</span>
+              <span className="stats-count">{totalBlogs}</span>
+            </div>
+
+            <div className="view-toggle-wrap">
+              <button
+                className={`view-toggle-btn ${viewMode === 'horizontal' ? 'active' : ''}`}
+                onClick={() => setViewMode('horizontal')}
+                title="Display cards horizontally"
+              >
+                <span>☰</span>
+                <span>Horizontal</span>
+              </button>
+              <button
+                className={`view-toggle-btn ${viewMode === 'grid' ? 'active' : ''}`}
+                onClick={() => setViewMode('grid')}
+                title="Display cards in multi-column grid"
+              >
+                <span>⊞</span>
+                <span>Grid</span>
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Blog Feed Grid */}
+        {/* Blog Feed (Horizontal Cards or Grid) */}
         {loadingBlogs ? (
           <div className="empty-box">Loading articles from MySQL...</div>
         ) : blogs.length === 0 ? (
@@ -265,7 +301,85 @@ export default function App() {
               + Write First Article
             </button>
           </div>
+        ) : viewMode === 'horizontal' ? (
+          /* HORIZONTAL CARDS DISPLAY */
+          <div className="blogs-horizontal-list">
+            {blogs.map((b) => {
+              const isAuthor =
+                currentUser &&
+                (currentUser.id === b.authorId || currentUser.role === 'admin');
+              const dateStr = new Date(b.createdAt).toLocaleDateString([], {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              });
+
+              return (
+                <article
+                  key={b.id}
+                  className="blog-card-horizontal"
+                  onClick={() => setReadingBlog(b)}
+                >
+                  <div className="blog-horizontal-header">
+                    <div className="author-chip">
+                      <div className="avatar-circle">
+                        {b.authorUsername
+                          ? b.authorUsername[0].toUpperCase()
+                          : 'U'}
+                      </div>
+                      <div className="author-info">
+                        <span className="author-name">
+                          @{b.authorUsername}
+                        </span>
+                        <span className="post-date">{dateStr}</span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span className="blog-cat-badge">#{b.category}</span>
+                      <span style={{ fontSize: '11px', color: 'var(--light-text-dim)' }}>
+                        {b.content.length} chars
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h2 className="blog-horizontal-title">{b.title}</h2>
+                    <p className="blog-horizontal-snippet">{b.content}</p>
+                  </div>
+
+                  <div
+                    className="blog-horizontal-footer"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span
+                      style={{
+                        color: 'var(--light-accent-blue)',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => setReadingBlog(b)}
+                    >
+                      Read Full Article →
+                    </span>
+                    {isAuthor && (
+                      <button
+                        className="btn-edit-blog"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenEditModal(b);
+                        }}
+                      >
+                        ✎ Edit Post
+                      </button>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         ) : (
+          /* MULTI-COLUMN HORIZONTAL GRID DISPLAY */
           <div className="blogs-grid">
             {blogs.map((b) => {
               const isAuthor =
@@ -278,7 +392,12 @@ export default function App() {
               });
 
               return (
-                <article key={b.id} className="blog-card">
+                <article
+                  key={b.id}
+                  className="blog-card"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setReadingBlog(b)}
+                >
                   <div>
                     <div className="blog-card-header">
                       <div className="author-chip">
@@ -301,12 +420,27 @@ export default function App() {
                     <p className="blog-snippet">{b.content}</p>
                   </div>
 
-                  <div className="blog-footer">
-                    <span>{b.content.length} characters</span>
+                  <div
+                    className="blog-footer"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span
+                      style={{
+                        color: 'var(--light-accent-blue)',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => setReadingBlog(b)}
+                    >
+                      Read →
+                    </span>
                     {isAuthor && (
                       <button
                         className="btn-edit-blog"
-                        onClick={() => handleOpenEditModal(b)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenEditModal(b);
+                        }}
                       >
                         ✎ Edit Post
                       </button>
@@ -341,6 +475,65 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* Full Article Reader Modal */}
+      {readingBlog && (
+        <div className="reader-modal-overlay" onClick={() => setReadingBlog(null)}>
+          <div className="reader-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="reader-modal-header">
+              <div className="author-chip">
+                <div className="avatar-circle">
+                  {readingBlog.authorUsername
+                    ? readingBlog.authorUsername[0].toUpperCase()
+                    : 'U'}
+                </div>
+                <div className="author-info">
+                  <span className="author-name">@{readingBlog.authorUsername}</span>
+                  <span className="post-date">
+                    {new Date(readingBlog.createdAt).toLocaleDateString([], {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </span>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span className="blog-cat-badge">#{readingBlog.category}</span>
+                <button
+                  onClick={() => setReadingBlog(null)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '18px',
+                    cursor: 'pointer',
+                    color: '#64748b',
+                    padding: '4px 8px',
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <div className="reader-modal-body">
+              <h1 style={{ fontSize: '22px', fontWeight: 800, marginBottom: '16px', color: '#1e242d' }}>
+                {readingBlog.title}
+              </h1>
+              <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.75', color: '#334155' }}>
+                {readingBlog.content}
+              </div>
+            </div>
+            <div className="reader-modal-footer">
+              <span style={{ fontSize: '12px', color: 'var(--light-text-dim)' }}>
+                {readingBlog.content.length} characters
+              </span>
+              <button className="btn-light-secondary" onClick={() => setReadingBlog(null)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* User Sign In / Register Modal */}
       <AuthModal

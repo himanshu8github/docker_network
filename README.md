@@ -90,11 +90,9 @@ Visitor (https://yourdomain.tech)           Admin (https://dashboard.yourdomain.
   * Captures real edge headers: `CF-Ray`, `CF-Connecting-IP`, `CF-IPCountry`, `X-Forwarded-For`.
 * **Database & Engine Telemetry**:
   * Real-time MySQL latency tracking, query counts, active connection pool stats, and server memory consumption.
-* **User & Visit Directory**:
-  * Full audit log of registered authors, roles, and geographical visit logs (`page_visits` table).
-* **Default Admin Credentials** (auto-seeded on startup):
-  * **Email**: `admin@cloudops.tech`
-  * **Password**: `Admin123456`
+* **Admin Account Management**:
+  * No hardcoded admin credentials exist in the codebase.
+  * Register admin accounts securely via `POST /admin/register` (body: `email`, `username`, `password`).
 
 ---
 

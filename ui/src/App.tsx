@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AuthModal } from './components/AuthModal';
 import { PostBlogModal } from './components/PostBlogModal';
-import { AdminPortal } from './components/AdminPortal';
 import { CustomToast, ToastMessage } from './components/CustomToast';
 
 interface BlogItem {
@@ -15,8 +14,6 @@ interface BlogItem {
 }
 
 export default function App() {
-  const [viewMode, setViewMode] = useState<'blog' | 'admin'>('blog');
-
   // Blog feed state
   const [blogs, setBlogs] = useState<BlogItem[]>([]);
   const [totalBlogs, setTotalBlogs] = useState(0);
@@ -135,20 +132,6 @@ export default function App() {
 
   const categories = ['All', 'Docker', 'AWS', 'DevOps', 'Security', 'Networking', 'Architecture'];
 
-  // Render Admin View if toggled
-  if (viewMode === 'admin') {
-    return (
-      <>
-        <CustomToast toasts={toasts} onDismiss={removeToast} />
-        <AdminPortal
-          onBackToBlog={() => setViewMode('blog')}
-          apiUrl={apiUrl}
-          addToast={addToast}
-        />
-      </>
-    );
-  }
-
   // Render Public Blog Portal (Screenshot 1 Cream Aesthetic)
   return (
     <div className="light-portal">
@@ -229,15 +212,6 @@ export default function App() {
                 Sign In
               </button>
             )}
-
-            {/* Admin Switcher */}
-            <button
-              className="btn-admin-switch"
-              onClick={() => setViewMode('admin')}
-            >
-              <span>🛡️</span>
-              <span>Admin Console</span>
-            </button>
           </div>
         </header>
 

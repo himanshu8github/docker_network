@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
 interface AdminPortalProps {
-  onBackToBlog: () => void;
+  onBackToBlog?: () => void;
   apiUrl: string;
   addToast: (type: 'success' | 'error' | 'info', msg: string) => void;
 }
@@ -181,15 +181,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               </div>
             </div>
 
-            <div className="modal-card-footer" style={{ justifyContent: 'space-between' }}>
-              <button
-                type="button"
-                className="btn-light-secondary"
-                style={{ backgroundColor: 'transparent', color: '#94a3b8', borderColor: '#1f2c44' }}
-                onClick={onBackToBlog}
-              >
-                Back
-              </button>
+            <div className="modal-card-footer" style={{ justifyContent: onBackToBlog ? 'space-between' : 'flex-end' }}>
+              {onBackToBlog && (
+                <button
+                  type="button"
+                  className="btn-light-secondary"
+                  style={{ backgroundColor: 'transparent', color: '#94a3b8', borderColor: '#1f2c44' }}
+                  onClick={onBackToBlog}
+                >
+                  Back
+                </button>
+              )}
               <button
                 type="submit"
                 className="btn-light-primary"

@@ -1,233 +1,189 @@
-# 🐳 Three-Tier Containerized Architecture: NestJS + MySQL + Nginx
+# 🚀 CloudOps Hub: Production Cloud Observability & Deployment Console
 
-A complete hands-on learning project exploring **Docker containerization, custom bridge networks, container-to-container DNS resolution, database network isolation, and Nginx reverse proxying**.
-
-Inspired by [Shubham Londhe's two-tier Flask + MySQL project](https://github.com/LondheShubham153/two-tier-flask-app/tree/master), adapted and scaled using **NestJS (TypeScript) + TypeORM + MySQL + Nginx + Vanilla HTML/CSS/JS**.
+A full-stack, enterprise-grade cloud observability and infrastructure platform built to master and showcase **Docker containerization, Docker bridge networks, Nginx reverse proxying, Cloudflare edge security (WAF & Bot Fight Mode), and AWS EC2 deployment with Elastic IP**.
 
 ---
 
-## 1. System Architecture
-
-### Production 3-Tier Setup (With Nginx Reverse Proxy)
-```text
-Browser / Client (http://<EC2_PUBLIC_IP>)  <-- Standard Port 80 (No custom port needed)
-        │
-        ▼ (Public Traffic)
-┌───────────────────────────────────────────────────────────────────────────┐
-│ Docker Custom Bridge Network: two-tier-net                                │
-│                                                                           │
-│   ┌────────────────────────────────┐                                      │
-│   │    nginx-proxy Container       │                                      │
-│   │    (Listening on Port 80)      │                                      │
-│   └───────────────┬────────────────┘                                      │
-│                   │                                                       │
-│                   │ proxy_pass http://nestjs-app:3000                     │
-│                   ▼                                                       │
-│   ┌────────────────────────────────┐                                      │
-│   │    nestjs-app Container        │                                      │
-│   │    (Listening on Port 3000)    │ (Port 3000 is hidden from internet!) │
-│   └───────────────┬────────────────┘                                      │
-│                   │                                                       │
-│                   │ DB_HOST=mysql (Docker Embedded DNS: 127.0.0.11)       │
-│                   ▼                                                       │
-│   ┌────────────────────────────────┐                                      │
-│   │    mysql Container             │                                      │
-│   │    (Listening on Port 3306)    │ (Port 3306 is 100% isolated!)        │
-│   └────────────────────────────────┘                                      │
-└───────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 2. Core DevOps & Docker Concepts Learned
-
-### 🔹 1. Docker Bridge Networks & Internal DNS
-* **The Problem:** Inside a container, `localhost` points to the container itself. Connecting to `DB_HOST=localhost` fails with `ECONNREFUSED`.
-* **The Solution:** By placing containers on a custom user-defined network (`docker network create two-tier-net`), Docker's embedded DNS server (`127.0.0.11`) automatically translates the hostname **`mysql`** to the MySQL container's private IP.
-
-### 🔹 2. Database Network Isolation (Security First)
-* We deliberately **do NOT publish port 3306** to the host (no `-p 3306:3306`).
-* **Result:** 
-  * Outside Internet ➔ MySQL: ❌ Blocked
-  * EC2 Host ➔ MySQL: ❌ Blocked
-  * NestJS Container ➔ MySQL: ✅ Allowed (purely private, container-to-container communication).
-
-### 🔹 3. Nginx as a Reverse Proxy
-* Placed Nginx at the front door on standard web port **80**.
-* Users access the site directly via `http://<IP>` without needing custom backend ports (`:3000` or `:3002`).
-* Nginx handles request buffering and passes real client headers (`X-Real-IP`, `X-Forwarded-For`) to NestJS.
-
-### 🔹 4. Failure Mode Analysis (502 Bad Gateway vs 504 Gateway Timeout)
-* **502 Bad Gateway:** Occurs when Nginx is alive, but the upstream backend (`nestjs-app`) is stopped or connection is immediately refused (`Connection Refused`).
-* **504 Gateway Timeout:** Occurs when Nginx successfully connects to the backend, but the backend takes longer than the timeout limit (e.g. 60s) to reply.
-* **Security Hardening:** Added `server_tokens off;` in `nginx.conf` so the 502 page only says `nginx` without revealing the version number (`1.31.5`).
-
-### 🔹 5. Active Container Health Checks
-* Rather than assuming a container is ready as soon as it launches, we use Docker's `healthcheck` instruction (`mysqladmin ping`).
-* **Why it matters:** MySQL takes several seconds to initialize database files on startup. Without a healthcheck, dependent services (`nestjs-app`) will fail to connect on boot.
-* Using `depends_on: { mysql: { condition: service_healthy } }` ensures the application tier waits until MySQL is fully operational.
-
-### 🔹 6. Auto-Restart Behavior: Intentional Stop vs. Process Crash
-* **`restart: unless-stopped`** policy restarts containers across crashes and server reboots, **except** when intentionally stopped via `docker stop` or `docker kill` from the CLI.
-* Docker CLI commands (`docker stop`, `docker kill`) signal manual administrative action ➔ Docker preserves the stopped state, so `RestartCount` remains `0`.
-* A real internal application crash (simulated by terminating the internal application process via `docker exec nestjs-app sh -c "kill -9 \$(pidof node)"`) triggers Docker's auto-healing daemon, automatically reviving the container and incrementing `RestartCount` to 1.
-
-### 🔹 7. Privacy & Log Anonymization
-* Access logs in production environments often fall under privacy regulations (GDPR).
-* We practiced both **Nginx-level IP anonymization** (via `map` directives in `nginx.conf`) and **CLI-level real-time log stream masking** (using `sed` in Bash or regex in PowerShell) to mask client IPs as `xxx.xxx.xxx.xxx` or `[HIDDEN_IP]`.
-
-
----
-
-## 3. Clean Enterprise NestJS Architecture
-
-The backend code adheres to clean, production-grade modular standards:
+## 1. System Architecture & Topology
 
 ```text
-src/
-├── main.ts                     # Bootstrap & 0.0.0.0 binding
-├── app.module.ts               # Root orchestrator module
-├── config/                     # Centralized environment configuration
-│   ├── config.schema.ts        # Joi validation schema (fail-fast on missing keys)
-│   ├── config.service.ts       # Typed getters (port, dbHost, dbPassword, etc.)
-│   ├── config.controller.ts    # GET /config/info (safe runtime config inspection)
-│   └── config.module.ts        # Global module exporting AppConfigService
-├── database/
-│   └── sqldb.module.ts         # Encapsulated TypeOrmModule.forRootAsync
-├── messages/                   # Feature module
-│   ├── message.entity.ts       # MySQL Message entity
-│   ├── messages.controller.ts   # POST /messages, GET /messages, GET /messages/:id
-│   ├── messages.service.ts      # TypeORM repository interaction
-│   └── dto/create-message.dto.ts
-public/                         # Static Frontend served by NestJS
-├── index.html                  # Message Board UI
-├── style.css                   # Clean, responsive styling
-└── app.js                      # Vanilla JavaScript DOM & fetch logic
+Visitor / LinkedIn Demo (https://yourdomain.tech or https://api.yourdomain.tech)
+                              │ (HTTPS / TLS 1.3)
+                              ▼
+        ┌───────────────────────────────────────────────────────────┐
+        │                 CLOUDFLARE EDGE NETWORK                   │
+        │                                                           │
+        │  • Free SSL/TLS Termination (Edge Certificate)            │
+        │  • Web Application Firewall (WAF Custom Rules)            │
+        │  • Bot Fight Mode & DDoS Anycast Shield                   │
+        │  • Subdomain Routing (Root UI @ vs api. Subdomain)        │
+        └─────────────────────────────┬─────────────────────────────┘
+                                      │ (Proxied Traffic 🟠)
+                                      ▼
+                        ┌───────────────────────────┐
+                        │   AWS EC2 (Elastic IP)    │
+                        │   Port 80 Ingress         │
+                        └─────────────┬─────────────┘
+                                      │
+┌─────────────────────────────────────▼─────────────────────────────────────────┐
+│ Docker User-Defined Bridge Network: app-net                                   │
+│                                                                               │
+│   ┌───────────────────────────────────────────────────────────────────────┐   │
+│   │                         nginx-proxy Container                         │   │
+│   │                         (Listening on Port 80)                        │   │
+│   └───────────────┬───────────────────────────────────────┬───────────────┘   │
+│                   │ proxy_pass (Root /)                   │ proxy_pass (/api, │
+│                   │                                       │  /messages)       │
+│                   ▼                                       ▼                   │
+│   ┌───────────────────────────────┐       ┌───────────────────────────────┐   │
+│   │       ui-app Container        │       │     nestjs-app Container      │   │
+│   │     Next.js 14 + TypeScript   │       │   NestJS + TypeORM (TS)       │   │
+│   │     (Internal Port 3001)      │       │   (Internal Port 3000)        │   │
+│   └───────────────────────────────┘       └───────────────┬───────────────┘   │
+│                                                           │                   │
+│                                                           │ DB_HOST=mysql     │
+│                                                           │ (127.0.0.11 DNS)  │
+│                                                           ▼                   │
+│                                           ┌───────────────────────────────┐   │
+│                                           │        mysql Container        │   │
+│                                           │   (Port 3306 - 100% Isolated) │   │
+│                                           └───────────────────────────────┘   │
+└───────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 4. Hands-On Step-by-Step Deployment Cheatsheet
+## 2. Project Structure (Monorepo Layout)
 
-### Step 1: Create the Private Docker Network
-```bash
-docker network create two-tier-net
-```
+The project is decoupled into two clean service directories with independent `.gitignore` configurations and root orchestration:
 
-### Step 2: Run the MySQL Container (Isolated)
-```bash
-docker run -d \
-  --name mysql \
-  --network two-tier-net \
-  -e MYSQL_ROOT_PASSWORD=password \
-  -e MYSQL_DATABASE=message_db \
-  mysql:latest
-```
-
-### Step 3: Build & Run the NestJS Backend
-```bash
-# Build the Docker image
-docker build -t nestjs_backend_app .
-
-# Run the container (Notice: No -p flag needed! Hidden behind Nginx)
-docker run -d \
-  --name nestjs-app \
-  --network two-tier-net \
-  -e DB_HOST=mysql \
-  -e DB_PORT=3306 \
-  -e DB_USERNAME=root \
-  -e DB_PASSWORD=password \
-  -e DB_DATABASE=message_db \
-  nestjs_backend_app
-```
-
-### Step 4: Run the Nginx Reverse Proxy
-```bash
-docker run -d \
-  --name nginx-proxy \
-  --network two-tier-net \
-  -p 80:80 \
-  -v $(pwd)/nginx.conf:/etc/nginx/nginx.conf:ro \
-  nginx:alpine
-```
-
-### Step 5: Test in Browser
-Open your browser and visit:
 ```text
-http://<YOUR_EC2_PUBLIC_IP>
+docker_network/
+├── .gitignore                   # Root gitignore (orchestration, global envs, docs)
+├── docker-compose.yml           # Multi-container service definitions (mysql, nestjs-app, ui-app, nginx)
+├── nginx.conf                   # Reverse proxy config with dual upstreams & proxy_set_header
+├── cloudflare.md                # Cloudflare DNS, student domain & security setup guide
+├── configure.md                 # Architecture roadmap and milestones
+│
+├── api/                         # 🟢 BACKEND (NestJS + TypeScript)
+│   ├── .gitignore               # API-specific gitignore (dist, node_modules, .env)
+│   ├── Dockerfile               # Node 20 Alpine production backend container
+│   ├── example.env              # Environment variable template
+│   ├── package.json             # NestJS & TypeORM dependencies
+│   ├── tsconfig.json            # Backend TypeScript configuration
+│   └── src/
+│       ├── main.ts              # 0.0.0.0 bind + global CORS configuration
+│       ├── app.module.ts        # Root orchestrator module & HTTP request logger
+│       ├── database/            # Encapsulated TypeORM MySQL module
+│       └── messages/            # Production incident & telemetry service
+│
+└── ui/                          # 🔵 FRONTEND (Next.js + TypeScript)
+    ├── .gitignore               # UI-specific gitignore (.next, out, node_modules)
+    ├── Dockerfile               # Multi-stage production container build
+    ├── example.env              # UI API URL template
+    ├── package.json             # Next.js 14, React 18, TypeScript
+    ├── tsconfig.json            # Frontend TypeScript configuration
+    ├── next.config.js           # Next.js output and environment config
+    └── src/
+        ├── app/
+        │   ├── globals.css      # Observability theme (Green, Blue, Red, Orange, Yellow, White)
+        │   ├── layout.tsx       # Root layout & Google typography
+        │   └── page.tsx         # Main dashboard client controller
+        └── components/
+            ├── Sidebar.tsx      # Responsive sidebar navigation & infrastructure pills
+            ├── CustomToast.tsx  # In-app notification toast (Zero browser alerts!)
+            ├── EntryModal.tsx   # Custom modal for recording deployments & notes
+            ├── TabDeployments.tsx # Tab 1: Deployments & Incident Stream
+            ├── TabInsights.tsx  # Tab 2: Architecture Notes (DevPulse)
+            └── TabTelemetry.tsx # Tab 3: Edge Telemetry & Grafana Latency Bars
 ```
-*(No port number required!)*
 
 ---
 
-## 5. Useful Verification & Troubleshooting Commands
+## 3. Platform Capabilities & 3-Tab Console
 
-### 📋 General Container & Network Operations
-| Task | Command |
-|---|---|
-| **View running containers** | `docker ps` |
-| **View containers and networks** | `docker ps --format "table {{.Names}}\t{{.Networks}}\t{{.Status}}"` |
-| **Inspect private network** | `docker network inspect two-tier-net` |
-| **Reload Nginx config (zero downtime)** | `docker exec -it nginx-proxy nginx -s reload` |
-| **Log in to MySQL container shell** | `docker exec -it mysql mysql -u root -p` |
-| **Check public IP from EC2** | `curl checkip.amazonaws.com` |
+### 🚀 Tab 1: Production Deployments & Incidents
+* **30-Day SLA Ribbon**: Grafana-style interactive uptime segment bar (99.98% SLA).
+* **Live Infrastructure Cards**: Active status for AWS EC2 Elastic IP, Nginx Reverse Proxy, Cloudflare WAF, and MySQL Network Isolation.
+* **Audit Stream**: Log and filter production deployments and incident post-mortems with status badges (`deployed`, `operational`, `investigating`, `degraded`, `resolved`).
 
----
+### 💡 Tab 2: DevOps Architecture Notes & TIL (DevPulse)
+* **Engineering Snippets**: Log architectural decisions, container networking concepts, and security takeaways.
+* **Category Tags**: Tagged by `#Docker`, `#AWS`, `#Networking`, `#Security`, `#Cloudflare`, and `#Nginx`.
 
-### 🔍 Health Check & Auto-Restart Diagnostics
-| Task | Command |
-|---|---|
-| **Inspect MySQL Health Check logs** | `docker inspect --format='{{json .State.Health}}' mysql` |
-| **Quick check health status** | `docker inspect --format='{{.State.Health.Status}}' mysql` |
-| **Simulate Manual Stop / Kill (RestartCount stays 0)** | `docker stop nestjs-app` (or `docker kill nestjs-app`) |
-| **Simulate Internal Process Crash (Triggers Auto-Restart)** | `docker exec nestjs-app sh -c "kill -9 \$(pidof node)"` |
-| **Inspect Container Status & RestartCount** | `docker inspect --format='Status: {{.State.Status}} \| RestartCount: {{.RestartCount}} \| StartedAt: {{.State.StartedAt}}' nestjs-app` |
-| **Stream Live Container Lifecycle Events** | `docker events --filter container=nestjs-app` |
+### 📊 Tab 3: Edge Telemetry & Request Inspector
+* **Live Ingress Header Table**: Inspect real headers forwarded through Cloudflare (`CF-Ray`, edge colocation point) and Nginx (`X-Real-IP`, `X-Forwarded-For`, `Host`).
+* **Active Health Probe**: Trigger live roundtrip health checks measuring client-to-edge latency in milliseconds.
+* **Grafana Progress Bars**: Visual breakdown of SSL termination, Nginx upstream pass, Docker DNS resolution, and MySQL query latency.
+
+### 🎨 Design & Experience
+* **Observability Palette**: Green (`#10b981`), Blue (`#3b82f6`), Red (`#ef4444`), Orange (`#f97316`), Yellow (`#eab308`), White (`#f8fafc`).
+* **Zero Browser `alert()`**: All actions use custom animated in-app toasts and modals.
+* **Full Mobile & Desktop Responsiveness**: Collapsible off-canvas sidebar drawer for mobile devices and data-dense multi-column layout for desktop.
 
 ---
 
-### 🛡️ Nginx Log Streaming & Privacy Masking (Hide Client IP)
-| Task | Command |
-|---|---|
-| **Stream Nginx logs (standard)** | `docker logs -f nginx-proxy` |
-| **Stream with timestamps** | `docker logs -t -f nginx-proxy` |
-| **View only recent 50 lines** | `docker logs --tail 50 nginx-proxy` |
-| **Mask ALL IPv4 addresses (Linux / Bash)** | `docker logs -f nginx-proxy 2>&1 \| sed -E 's/[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/xxx.xxx.xxx.xxx/g'` |
-| **Mask ALL IPv4 addresses (PowerShell)** | `docker logs -f nginx-proxy 2>&1 \| ForEach-Object { $_ -replace '\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b', 'xxx.xxx.xxx.xxx' }` |
-| **Filter error logs only** | `docker logs nginx-proxy 2>&1 \| grep -E "error\|warn"` |
+## 4. Deploying to AWS EC2 with Elastic IP & Cloudflare
+
+### Step 1: Allocate AWS Elastic IP
+1. In AWS Console ➔ **EC2** ➔ **Network & Security** ➔ **Elastic IPs**.
+2. Click **Allocate Elastic IP address** ➔ **Allocate**.
+3. Select the IP ➔ **Actions** ➔ **Associate Elastic IP address** ➔ Select your running EC2 instance.
+> *An Elastic IP is permanent across instance reboots, preventing your Cloudflare DNS records from breaking.*
+
+### Step 2: Open Security Group Ports
+In your EC2 instance's Security Group, ensure inbound rules allow:
+* `Port 22` (SSH) ➔ Your IP
+* `Port 80` (HTTP) ➔ `0.0.0.0/0` (Web ingress / Cloudflare)
+* `Port 443` (HTTPS) ➔ `0.0.0.0/0` (Encrypted web ingress)
+*(Keep ports 3000, 3001, and 3306 closed to public internet).*
+
+### Step 3: Run on EC2 Server
+```bash
+# SSH into EC2
+ssh -i devops-key.pem ubuntu@<YOUR_ELASTIC_IP>
+
+# Clone repository
+git clone <YOUR_GITHUB_REPO_URL>
+cd docker_network
+
+# Set up production environment
+cp api/example.env api/.env
+nano api/.env
+
+# Build and start all 4 services via Docker Compose
+docker compose up -d --build
+```
+
+### Step 4: Configure Cloudflare DNS
+In Cloudflare Dashboard ➔ Your `.tech` domain ➔ **DNS**:
+
+| Type | Name | Content | Proxy Status |
+| :--- | :--- | :--- | :--- |
+| **A** | `@` (Root) | `<YOUR_ELASTIC_IP>` | 🟠 **Proxied** |
+| **A** | `api` | `<YOUR_ELASTIC_IP>` | 🟠 **Proxied** |
+| **CNAME** | `www` | `yourdomain.tech` | 🟠 **Proxied** |
+
+Under **SSL/TLS** ➔ set mode to **Full** and enable **Always Use HTTPS** and **Bot Fight Mode** under **Security ➔ Bots**.
 
 ---
 
-## 6. Local Development (Without Docker)
+## 5. Ready-to-Use LinkedIn Portfolio Post
 
-1. Copy environment template:
-   ```bash
-   copy example.env .env
-   ```
-2. Start local MySQL and create database:
-   ```sql
-   CREATE DATABASE message_db;
-   ```
-3. Install dependencies and run:
-   ```bash
-   npm install
-   npm run start:dev
-   ```
-4. Access at: `http://localhost:3000` (or the port defined in `.env`).
+```text
+🚀 Excited to share my latest Cloud & DevOps project: CloudOps Hub!
 
----
+While working as a Full-Stack Engineer, I wanted to dive deeper into production container networking, reverse proxies, and edge security. Instead of building another basic todo app, I designed and deployed an enterprise-grade Cloud Observability & Deployment Console on AWS.
 
-## 7. Learning Roadmap & Milestones
-- [x] Two-Tier NestJS + MySQL Architecture
-- [x] Docker Custom Bridge Network & Embedded DNS
-- [x] Database Network Isolation (Zero Published Ports)
-- [x] Nginx Reverse Proxy (Port 80 front door)
-- [x] Failure Simulation (502 Bad Gateway) & Security Hardening (`server_tokens off;`)
-- [x] Enterprise Config & Database Modules (Joi + `SqlDbModule`)
-- [x] Container Health Checks (`mysqladmin ping` + `condition: service_healthy`)
-- [x] Crash Recovery & Auto-Restart Policies (`unless-stopped` vs `docker stop` vs PID 1 kill)
-- [x] Real-time Log Stream Analysis & IP Privacy Masking (`sed` & regex filtering)
-- [ ] Multiple Backend Replicas & Load Balancing (Round-Robin via Nginx upstream)
-- [ ] Restricted Database User (CRUD only, block DROP/TRUNCATE)
-- [ ] AWS Secrets Manager Integration
+🏗️ Architecture Highlights:
+• Decoupled Monorepo: Next.js 14 (TypeScript) frontend + NestJS (TypeScript + TypeORM) backend + MySQL database.
+• Edge Security: Cloudflare Anycast network handling free SSL termination, Bot Fight Mode, and custom WAF rate-limiting rules.
+• Ingress Routing: Nginx reverse proxy running on standard port 80 on an AWS EC2 Elastic IP, forwarding traffic to internal containers via Docker bridge networking (app-net).
+• Database Isolation: MySQL port 3306 is completely unpublished to the host and resolves strictly over Docker's internal DNS (127.0.0.11).
+• Live Telemetry: Built an edge request inspector to verify forwarded client headers (CF-Ray, X-Real-IP, X-Forwarded-For) and internal database connection pool latencies in real time.
 
+Live Demo: https://yourdomain.tech
+GitHub: https://github.com/<your-username>/docker_network
+
+#DevOps #Docker #AWS #Nginx #Cloudflare #NextJS #NestJS #CloudComputing #SoftwareEngineering
+```

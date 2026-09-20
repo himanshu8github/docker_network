@@ -165,17 +165,35 @@ export class CryptoService {
     throw new UnauthorizedException('Invalid or unauthenticated token');
   }
 
-  // Generate Refresh Token in standard JWT format (Header + Payload + Signature)
+  // Generate Refresh Token with AES-256-GCM encrypted claims inside standard JWT
   generateRefreshTokenString(user?: { id?: number; role?: string }): string {
-    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
     const nowSec = Math.floor(Date.now() / 1000);
+    const exp = nowSec + 2 * 24 * 60 * 60; // 2 days
+
+    const refreshClaims = {
+      sub: user?.id || 0,
+      role: user?.role || 'user',
+      type: 'refresh',
+      jti: crypto.randomBytes(16).toString('hex'),
+      createdAt: new Date().toISOString(),
+      exp,
+    };
+
+    // Encrypt refresh claims using AES-256-GCM
+    const key = this.getEncryptionKey();
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    let ciphertext = cipher.update(JSON.stringify(refreshClaims), 'utf8', 'base64url');
+    ciphertext += cipher.final('base64url');
+    const authTag = cipher.getAuthTag().toString('base64url');
+    const encryptedData = `${iv.toString('base64url')}.${ciphertext}.${authTag}`;
+
+    // Standard JWT: Header . Payload . Signature
+    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
     const payload = Buffer.from(
       JSON.stringify({
-        sub: user?.id || 0,
-        role: user?.role || 'user',
-        type: 'refresh',
-        jti: crypto.randomBytes(16).toString('hex'),
-        exp: nowSec + 2 * 24 * 60 * 60, // 2 days
+        enc: encryptedData,
+        exp,
       }),
     ).toString('base64url');
 

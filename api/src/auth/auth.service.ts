@@ -119,7 +119,7 @@ export class AuthService implements OnModuleInit {
 
     return {
       user: {
-        id: savedUser.id,
+        // id: savedUser.id,
         email: savedUser.email,
         username: savedUser.username,
         role: 'user',
@@ -127,7 +127,7 @@ export class AuthService implements OnModuleInit {
       },
       accessToken,
       refreshToken: rawRefreshToken,
-      expiresIn: 7200,
+      // expiresIn: 7200,
     };
   }
 
@@ -165,7 +165,7 @@ export class AuthService implements OnModuleInit {
 
     return {
       user: {
-        id: user.id,
+        // id: user.id,
         email: user.email,
         username: user.username,
         role: roleName,
@@ -173,7 +173,7 @@ export class AuthService implements OnModuleInit {
       },
       accessToken,
       refreshToken: rawRefreshToken,
-      expiresIn: 7200,
+      // expiresIn: 7200,
     };
   }
 

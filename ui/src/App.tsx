@@ -1,10 +1,8 @@
-'use client';
-
 import React, { useState, useEffect, useCallback } from 'react';
-import { AuthModal } from '../components/AuthModal';
-import { PostBlogModal } from '../components/PostBlogModal';
-import { AdminPortal } from '../components/AdminPortal';
-import { CustomToast, ToastMessage } from '../components/CustomToast';
+import { AuthModal } from './components/AuthModal';
+import { PostBlogModal } from './components/PostBlogModal';
+import { AdminPortal } from './components/AdminPortal';
+import { CustomToast, ToastMessage } from './components/CustomToast';
 
 interface BlogItem {
   id: number;
@@ -16,7 +14,7 @@ interface BlogItem {
   createdAt: string;
 }
 
-export default function HomePage() {
+export default function App() {
   const [viewMode, setViewMode] = useState<'blog' | 'admin'>('blog');
 
   // Blog feed state
@@ -52,7 +50,7 @@ export default function HomePage() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+  const apiUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3000';
 
   // Restore saved user token
   useEffect(() => {
@@ -87,7 +85,7 @@ export default function HomePage() {
           setCurrentPage(data.page || 1);
           setTotalPages(data.totalPages || 1);
         }
-      } catch (err: any) {
+      } catch {
         addToast('error', 'Unable to fetch blogs from API');
       } finally {
         setLoadingBlogs(false);
@@ -96,7 +94,6 @@ export default function HomePage() {
     [apiUrl],
   );
 
-  // Initial fetch and on filter change
   useEffect(() => {
     fetchBlogs(currentPage, selectedCategory, searchTerm);
   }, [currentPage, selectedCategory, searchTerm, fetchBlogs]);
@@ -191,27 +188,53 @@ export default function HomePage() {
 
             {currentUser ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div className="author-chip" style={{ background: '#ffffff', padding: '4px 10px', borderRadius: '16px', border: '1px solid #e9e5de' }}>
-                  <div className="avatar-circle" style={{ width: '24px', height: '24px', fontSize: '11px' }}>
+                <div
+                  className="author-chip"
+                  style={{
+                    background: '#ffffff',
+                    padding: '4px 10px',
+                    borderRadius: '16px',
+                    border: '1px solid #e9e5de',
+                  }}
+                >
+                  <div
+                    className="avatar-circle"
+                    style={{ width: '24px', height: '24px', fontSize: '11px' }}
+                  >
                     {currentUser.username[0].toUpperCase()}
                   </div>
-                  <span style={{ fontSize: '12px', fontWeight: 600 }}>@{currentUser.username}</span>
+                  <span style={{ fontSize: '12px', fontWeight: 600 }}>
+                    @{currentUser.username}
+                  </span>
                 </div>
                 <button
-                  style={{ background: 'none', border: 'none', color: '#e11d48', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#e11d48',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
                   onClick={handleUserLogout}
                 >
                   Logout
                 </button>
               </div>
             ) : (
-              <button className="btn-light-secondary" onClick={() => setIsAuthOpen(true)}>
+              <button
+                className="btn-light-secondary"
+                onClick={() => setIsAuthOpen(true)}
+              >
                 Sign In
               </button>
             )}
 
             {/* Admin Switcher */}
-            <button className="btn-admin-switch" onClick={() => setViewMode('admin')}>
+            <button
+              className="btn-admin-switch"
+              onClick={() => setViewMode('admin')}
+            >
               <span>🛡️</span>
               <span>Admin Console</span>
             </button>
@@ -240,20 +263,40 @@ export default function HomePage() {
         ) : blogs.length === 0 ? (
           <div className="empty-box">
             <div style={{ fontSize: '32px', marginBottom: '12px' }}>📝</div>
-            <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#1e242d', marginBottom: '6px' }}>
+            <h3
+              style={{
+                fontSize: '16px',
+                fontWeight: 700,
+                color: '#1e242d',
+                marginBottom: '6px',
+              }}
+            >
               No articles published yet
             </h3>
-            <p style={{ fontSize: '13px', color: '#656d78', marginBottom: '16px' }}>
-              Be the first engineer to publish a technical article to the community feed!
+            <p
+              style={{
+                fontSize: '13px',
+                color: '#656d78',
+                marginBottom: '16px',
+              }}
+            >
+              Be the first engineer to publish a technical article to the community
+              feed!
             </p>
-            <button className="btn-light-primary" style={{ margin: '0 auto' }} onClick={handleOpenPostModal}>
+            <button
+              className="btn-light-primary"
+              style={{ margin: '0 auto' }}
+              onClick={handleOpenPostModal}
+            >
               + Write First Article
             </button>
           </div>
         ) : (
           <div className="blogs-grid">
             {blogs.map((b) => {
-              const isAuthor = currentUser && (currentUser.id === b.authorId || currentUser.role === 'admin');
+              const isAuthor =
+                currentUser &&
+                (currentUser.id === b.authorId || currentUser.role === 'admin');
               const dateStr = new Date(b.createdAt).toLocaleDateString([], {
                 month: 'short',
                 day: 'numeric',
@@ -266,10 +309,14 @@ export default function HomePage() {
                     <div className="blog-card-header">
                       <div className="author-chip">
                         <div className="avatar-circle">
-                          {b.authorUsername ? b.authorUsername[0].toUpperCase() : 'U'}
+                          {b.authorUsername
+                            ? b.authorUsername[0].toUpperCase()
+                            : 'U'}
                         </div>
                         <div className="author-info">
-                          <span className="author-name">@{b.authorUsername}</span>
+                          <span className="author-name">
+                            @{b.authorUsername}
+                          </span>
                           <span className="post-date">{dateStr}</span>
                         </div>
                       </div>
@@ -283,7 +330,10 @@ export default function HomePage() {
                   <div className="blog-footer">
                     <span>{b.content.length} characters</span>
                     {isAuthor && (
-                      <button className="btn-edit-blog" onClick={() => handleOpenEditModal(b)}>
+                      <button
+                        className="btn-edit-blog"
+                        onClick={() => handleOpenEditModal(b)}
+                      >
                         ✎ Edit Post
                       </button>
                     )}

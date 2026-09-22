@@ -84,7 +84,10 @@ export default function App() {
           setUserToken(token);
           if (token) {
             const res = await fetch(`${apiUrl}/auth/me`, {
-              headers: { Authorization: `Bearer ${token}` },
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'x-user-email': clerkUser?.primaryEmailAddress?.emailAddress || '',
+              },
             });
             if (res.ok) {
               const data = await res.json();
@@ -102,7 +105,7 @@ export default function App() {
       setUserToken(null);
       setCurrentUser(null);
     }
-  }, [isSignedIn, isLoaded, getToken, apiUrl]);
+  }, [isSignedIn, isLoaded, getToken, apiUrl, clerkUser]);
 
   // Record visit on initial page load (tracking Cloudflare headers & page views)
   useEffect(() => {
@@ -141,6 +144,13 @@ export default function App() {
   const handleUsernameSuccess = (newUsername: string) => {
     setIsSetUsernameOpen(false);
     setCurrentUser((prev: any) => ({ ...prev, username: newUsername, needsUsername: false }));
+  };
+
+  const handleUserLoginSuccess = (token: string, user: any) => {
+    setUserToken(token);
+    setCurrentUser(user);
+    setIsAuthOpen(false);
+    addToast('success', `Welcome, @${user.username}!`);
   };
 
   const handleOpenPostModal = async () => {
@@ -362,7 +372,10 @@ export default function App() {
             {blogs.map((b) => {
               const isAuthor =
                 currentUser &&
-                (currentUser.id === b.authorId || currentUser.role === 'admin');
+                (currentUser.id === b.authorId ||
+                  currentUser.sub === b.authorId ||
+                  currentUser.username === b.authorUsername ||
+                  currentUser.role === 'admin');
               const dateStr = new Date(b.createdAt).toLocaleDateString([], {
                 month: 'short',
                 day: 'numeric',
@@ -418,15 +431,27 @@ export default function App() {
                       Read Full Article →
                     </span>
                     {isAuthor && (
-                      <button
-                        className="btn-edit-blog"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenEditModal(b);
-                        }}
-                      >
-                        ✎ Edit Post
-                      </button>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          className="btn-edit-blog"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenEditModal(b);
+                          }}
+                        >
+                          ✎ Edit
+                        </button>
+                        <button
+                          className="btn-edit-blog"
+                          style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteBlog(b.id);
+                          }}
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
                     )}
                   </div>
                 </article>
@@ -439,7 +464,10 @@ export default function App() {
             {blogs.map((b) => {
               const isAuthor =
                 currentUser &&
-                (currentUser.id === b.authorId || currentUser.role === 'admin');
+                (currentUser.id === b.authorId ||
+                  currentUser.sub === b.authorId ||
+                  currentUser.username === b.authorUsername ||
+                  currentUser.role === 'admin');
               const dateStr = new Date(b.createdAt).toLocaleDateString([], {
                 month: 'short',
                 day: 'numeric',
@@ -490,15 +518,27 @@ export default function App() {
                       Read →
                     </span>
                     {isAuthor && (
-                      <button
-                        className="btn-edit-blog"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenEditModal(b);
-                        }}
-                      >
-                        ✎ Edit Post
-                      </button>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          className="btn-edit-blog"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenEditModal(b);
+                          }}
+                        >
+                          ✎ Edit
+                        </button>
+                        <button
+                          className="btn-edit-blog"
+                          style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteBlog(b.id);
+                          }}
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
                     )}
                   </div>
                 </article>

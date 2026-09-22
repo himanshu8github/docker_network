@@ -4,6 +4,7 @@ import { User } from '../users/user.entity';
 import { Blog } from '../blogs/blog.entity';
 import { PageVisit } from '../analytics/page-visit.entity';
 import { RequestLog } from './request-log.entity';
+import { Role } from '../roles/role.entity';
 import { DashboardService } from './dashboard.service';
 import { DashboardController } from './dashboard.controller';
 import { TelemetryService } from './telemetry.service';
@@ -12,7 +13,7 @@ import { AdminModule } from '../admin/admin.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Blog, PageVisit, RequestLog]),
+    TypeOrmModule.forFeature([User, Blog, PageVisit, RequestLog, Role]),
     AuthModule,
     AdminModule,
   ],

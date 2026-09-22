@@ -43,85 +43,106 @@ export class ClerkAuthGuard implements CanActivate {
 
     // 1. Primary: Verify with Clerk
     if (secretKey) {
+      if (!this.clerkClient) {
+        this.clerkClient = createClerkClient({ secretKey });
+      }
+
       try {
         const payload: any = await verifyToken(token, { secretKey });
         if (payload && payload.sub) {
           const clerkId = payload.sub;
 
-          // Check if user exists in local database by clerkId
-          let dbUser = await this.userRepository.findOne({
+          // Extract user email from request header or Clerk API
+          let userEmail = ((request.headers['x-user-email'] as string) || payload.email || '').trim().toLowerCase();
+
+          if (!userEmail && this.clerkClient) {
+            try {
+              const clerkUser = await this.clerkClient.users.getUser(clerkId);
+              const primaryEmailId = clerkUser.primaryEmailAddressId;
+              const primary = clerkUser.emailAddresses?.find((e: any) => e.id === primaryEmailId);
+              userEmail = (primary?.emailAddress || clerkUser.emailAddresses?.[0]?.emailAddress || '').trim().toLowerCase();
+            } catch (err: any) {
+              this.logger.warn(`Could not fetch Clerk user details: ${err.message}`);
+            }
+          }
+
+          // Check for user in local DB by email first (to link pre-existing admin accounts)
+          let dbUser = null;
+          if (userEmail) {
+            dbUser = await this.userRepository.findOne({
+              where: { email: userEmail },
+              relations: ['role'],
+            });
+          }
+
+          // Also check by clerkId
+          const userByClerk = await this.userRepository.findOne({
             where: { clerkId },
             relations: ['role'],
           });
 
-          // If not in database, sync/provision user from Clerk
-          if (!dbUser) {
-            let email = payload.email || '';
-            let username = payload.username || '';
-            let roleName = 'user';
-
-            if (this.clerkClient) {
+          if (dbUser) {
+            // Reconcile: If a temporary duplicate user was created earlier under clerkId
+            if (userByClerk && userByClerk.id !== dbUser.id) {
+              this.logger.log(`Merging duplicate user ${userByClerk.id} into real account ${dbUser.id} (${userEmail})`);
               try {
-                const clerkUser = await this.clerkClient.users.getUser(clerkId);
-                email = email || clerkUser.emailAddresses?.[0]?.emailAddress || '';
-                username = username || clerkUser.username || '';
-                if (clerkUser.publicMetadata?.role === 'admin') {
-                  roleName = 'admin';
-                }
-              } catch (err: any) {
-                this.logger.warn(`Could not fetch Clerk user details: ${err.message}`);
+                await this.userRepository.delete(userByClerk.id);
+              } catch (delErr: any) {
+                this.logger.warn(`Could not delete stub user: ${delErr.message}`);
               }
             }
-
-            if (!email) {
-              email = `${clerkId}@clerk.user`;
+            if (dbUser.clerkId !== clerkId) {
+              dbUser.clerkId = clerkId;
+              await this.userRepository.save(dbUser);
             }
+          } else if (userByClerk) {
+            dbUser = userByClerk;
+            if (userEmail && dbUser.email !== userEmail && !dbUser.email.includes('@gmail.com') && !dbUser.email.includes('@')) {
+              dbUser.email = userEmail;
+              await this.userRepository.save(dbUser);
+            }
+          } else {
+            // Neither email nor clerkId found in DB -> Provision new user
+            const finalEmail = userEmail || `${clerkId}@clerk.user`;
+            const cleanId = clerkId.replace(/[^a-zA-Z0-9]/g, '');
+            const username = `u${cleanId.slice(-6)}`.slice(0, 10);
 
-            // Check if existing user by email
-            const existingByEmail = await this.userRepository.findOne({
-              where: { email },
-              relations: ['role'],
+            let role = await this.roleRepository.findOne({ where: { name: 'user' } });
+            const newUser = this.userRepository.create({
+              clerkId,
+              email: finalEmail,
+              username,
+              roleId: role ? role.id : 2,
+              role: role || undefined,
             });
-
-            if (existingByEmail) {
-              existingByEmail.clerkId = clerkId;
-              dbUser = await this.userRepository.save(existingByEmail);
-            } else {
-              // Generate initial temporary handle (4-10 chars) until chosen
-              if (!username) {
-                const cleanId = clerkId.replace(/[^a-zA-Z0-9]/g, '');
-                username = `u${cleanId.slice(-6)}`.slice(0, 10);
-              }
-
-              let role = await this.roleRepository.findOne({ where: { name: roleName } });
-              if (!role) {
-                role = await this.roleRepository.findOne({ where: { name: 'user' } });
-              }
-
-              const newUser = this.userRepository.create({
-                clerkId,
-                email,
-                username,
-                roleId: role ? role.id : 2,
-                role: role || undefined,
-              });
-
-              try {
-                dbUser = await this.userRepository.save(newUser);
-              } catch {
-                dbUser = await this.userRepository.findOne({ where: { clerkId }, relations: ['role'] });
-              }
+            try {
+              dbUser = await this.userRepository.save(newUser);
+            } catch {
+              dbUser = await this.userRepository.findOne({ where: { clerkId }, relations: ['role'] });
             }
           }
 
-          const roleName = dbUser?.role?.name || (payload.role === 'admin' ? 'admin' : 'user');
+          // Re-fetch role if missing
+          if (dbUser && !dbUser.role && dbUser.roleId) {
+            dbUser.role = await this.roleRepository.findOne({ where: { id: dbUser.roleId } });
+          }
+
+          // Determine admin status
+          const isAdmin =
+            dbUser?.roleId === 1 ||
+            dbUser?.role?.name === 'admin' ||
+            payload.role === 'admin';
+
+          const roleName = isAdmin ? 'admin' : 'user';
           const isPendingHandle = !dbUser?.username || dbUser.username.startsWith('u') || dbUser.username.length < 4;
 
           request.user = {
+            id: dbUser ? dbUser.id : 0,
             sub: dbUser ? dbUser.id : 0,
             clerkId,
-            email: dbUser ? dbUser.email : payload.email,
-            username: dbUser ? dbUser.username : payload.username || 'user',
+            email: dbUser ? dbUser.email : userEmail,
+            username: dbUser ? dbUser.username : (payload.username || 'user'),
+            roleId: dbUser ? dbUser.roleId : (isAdmin ? 1 : 2),
             role: roleName,
             needsUsername: isPendingHandle,
           };

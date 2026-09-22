@@ -14,6 +14,6 @@ import { ClerkAuthGuard } from './guards/clerk-auth.guard';
   imports: [TypeOrmModule.forFeature([User, Role, RefreshToken])],
   controllers: [AuthController],
   providers: [AuthService, CryptoService, BloomFilterService, JwtAuthGuard, ClerkAuthGuard],
-  exports: [AuthService, CryptoService, JwtAuthGuard, ClerkAuthGuard, BloomFilterService],
+  exports: [AuthService, CryptoService, JwtAuthGuard, ClerkAuthGuard, BloomFilterService, TypeOrmModule],
 })
 export class AuthModule {}

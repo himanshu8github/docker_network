@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useUser, useAuth, useClerk, SignInButton, UserButton, SignOutButton } from '@clerk/clerk-react';
 
 interface AdminPortalProps {
   onBackToBlog?: () => void;
@@ -13,13 +14,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   apiUrl,
   addToast,
 }) => {
+  const clerk = useClerk();
+  const { isSignedIn: isClerkSignedIn, user: clerkUser } = useUser();
+  const { getToken: getClerkToken } = useAuth();
+
   const [adminToken, setAdminToken] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'stream' | 'users' | 'visits' | 'health'>('stream');
 
-  // Login form state
-  const [adminEmail, setAdminEmail] = useState('');
-  const [adminPassword, setAdminPassword] = useState('');
-  const [loginLoading, setLoginLoading] = useState(false);
+  // Access denial state
+  const [adminAccessDenied, setAdminAccessDenied] = useState(false);
 
   // Tab pagination states
   const [streamPage, setStreamPage] = useState(1);
@@ -48,6 +51,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     if (saved) setAdminToken(saved);
   }, []);
 
+  // Sync Clerk Session if signed in
+  useEffect(() => {
+    if (isClerkSignedIn && !adminAccessDenied) {
+      (async () => {
+        try {
+          const token = await getClerkToken();
+          if (token) {
+            setAdminToken(token);
+          }
+        } catch {}
+      })();
+    }
+  }, [isClerkSignedIn, getClerkToken, adminAccessDenied]);
+
   // Fetch Dashboard Metrics & Stream (Protected)
   const fetchMetrics = useCallback(
     async (page = streamPage) => {
@@ -55,12 +72,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       setRefreshing(true);
       try {
         const res = await fetch(`${apiUrl}/dashboard/metrics?page=${page}&limit=10`, {
-          headers: { Authorization: `Bearer ${adminToken}` },
+          headers: {
+            Authorization: `Bearer ${adminToken}`,
+            'x-user-email': clerkUser?.primaryEmailAddress?.emailAddress || '',
+          },
         });
         if (res.status === 401 || res.status === 403) {
           setAdminToken(null);
           localStorage.removeItem('cloudops_admin_token');
-          addToast('error', 'Admin session expired. Please sign in again.');
+          if (res.status === 403) {
+            setAdminAccessDenied(true);
+            addToast('error', 'Access denied: Your account does not have Admin role in the database.');
+          } else {
+            addToast('error', 'Admin session expired. Please sign in again.');
+          }
           return;
         }
         if (res.ok) {
@@ -73,7 +98,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         setRefreshing(false);
       }
     },
-    [adminToken, apiUrl, streamPage, addToast],
+    [adminToken, apiUrl, streamPage, addToast, clerkUser],
   );
 
   // Fetch Users Directory (Protected)
@@ -82,7 +107,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       if (!adminToken) return;
       try {
         const res = await fetch(`${apiUrl}/dashboard/users?page=${page}&limit=10`, {
-          headers: { Authorization: `Bearer ${adminToken}` },
+          headers: {
+            Authorization: `Bearer ${adminToken}`,
+            'x-user-email': clerkUser?.primaryEmailAddress?.emailAddress || '',
+          },
         });
         if (res.ok) {
           const data = await res.json();
@@ -92,7 +120,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         // Silent error
       }
     },
-    [adminToken, apiUrl, usersPage],
+    [adminToken, apiUrl, usersPage, clerkUser],
   );
 
   // Fetch Visits Analytics (Protected)
@@ -101,7 +129,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       if (!adminToken) return;
       try {
         const res = await fetch(`${apiUrl}/dashboard/visits?page=${page}&limit=10`, {
-          headers: { Authorization: `Bearer ${adminToken}` },
+          headers: {
+            Authorization: `Bearer ${adminToken}`,
+            'x-user-email': clerkUser?.primaryEmailAddress?.emailAddress || '',
+          },
         });
         if (res.ok) {
           const data = await res.json();
@@ -111,7 +142,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         // Silent error
       }
     },
-    [adminToken, apiUrl, visitsPage],
+    [adminToken, apiUrl, visitsPage, clerkUser],
   );
 
   useEffect(() => {
@@ -140,107 +171,193 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   }, [adminToken, streamPage, fetchMetrics]);
 
-  const handleAdminLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginLoading(true);
-    try {
-      const res = await fetch(`${apiUrl}/admin/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: adminEmail, password: adminPassword }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || 'Admin authentication failed');
-      }
-
-      setAdminToken(data.accessToken);
-      localStorage.setItem('cloudops_admin_token', data.accessToken);
-      addToast('success', 'Admin session authorized (Valid for 24 Hours)');
-    } catch (err: any) {
-      addToast('error', err.message);
-    } finally {
-      setLoginLoading(false);
-    }
-  };
-
   const handleLogout = () => {
     setAdminToken(null);
+    setAdminAccessDenied(false);
     localStorage.removeItem('cloudops_admin_token');
     addToast('info', 'Admin logged out');
+  };
+
+  const handleAdminSSOClick = async () => {
+    try {
+      if (isClerkSignedIn) {
+        const token = await getClerkToken();
+        if (token) {
+          setAdminAccessDenied(false);
+          setAdminToken(token);
+          addToast('info', 'Authorizing admin session...');
+          return;
+        }
+      }
+      if (clerk && typeof (clerk as any).openSignIn === 'function') {
+        (clerk as any).openSignIn({
+          afterSignInUrl: window.location.href,
+        });
+      } else if (clerk && typeof (clerk as any).redirectToSignIn === 'function') {
+        (clerk as any).redirectToSignIn();
+      }
+    } catch (err: any) {
+      console.error('Clerk SSO error:', err);
+      if (clerk && typeof (clerk as any).redirectToSignIn === 'function') {
+        (clerk as any).redirectToSignIn();
+      }
+    }
   };
 
   // If not logged in as Admin, show Admin Gate
   if (!adminToken) {
     return (
       <div className="dark-portal" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px' }}>
-        <div className="modal-card dark" style={{ width: '100%', maxWidth: '440px' }}>
+        <div className="modal-card dark" style={{ width: '100%', maxWidth: '440px', boxShadow: '0 20px 40px rgba(0,0,0,0.5)', border: '1px solid #1e293b' }}>
           <div className="modal-card-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ fontSize: '20px' }}>🛡️</span>
               <h3 style={{ fontSize: '16px', fontWeight: 700 }}>GradMetric Admin Gate</h3>
             </div>
-            <button
-              style={{ background: 'none', border: 'none', color: 'var(--dark-text-dim)', fontSize: '13px', cursor: 'pointer' }}
-              onClick={onBackToBlog}
-            >
-              ← Public Blog
-            </button>
+            {onBackToBlog && (
+              <button
+                style={{ background: 'none', border: 'none', color: 'var(--dark-text-dim)', fontSize: '13px', cursor: 'pointer' }}
+                onClick={onBackToBlog}
+              >
+                ← Public Blog
+              </button>
+            )}
           </div>
 
-          <form onSubmit={handleAdminLogin}>
-            <div className="modal-card-body">
-              <p style={{ fontSize: '13px', color: 'var(--dark-text-muted)' }}>
-                Access to live ingress telemetry, registered users, and Cloudflare analytics requires an authorized Admin account.
-              </p>
+          <div style={{ padding: '24px' }}>
+            {adminAccessDenied && isClerkSignedIn ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', textAlign: 'center' }}>
+                <div style={{
+                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: '8px',
+                  padding: '16px',
+                }}>
+                  <div style={{ fontSize: '24px', marginBottom: '8px' }}>🚫</div>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#f87171', marginBottom: '4px' }}>
+                    Admin Role Required
+                  </div>
+                  <p style={{ fontSize: '12px', color: '#cbd5e1', margin: 0, lineHeight: 1.5 }}>
+                    Signed in as <strong style={{ color: '#ffffff' }}>{clerkUser?.primaryEmailAddress?.emailAddress}</strong>, but your account does not have <code style={{ color: '#38bdf8' }}>admin</code> role in MySQL.
+                  </p>
+                </div>
 
-              <div className="form-group">
-                <label>Admin Email</label>
-                <input
-                  type="email"
-                  className="form-input"
-                  placeholder="admin@gradmetric.me"
-                  value={adminEmail}
-                  onChange={(e) => setAdminEmail(e.target.value)}
-                  required
-                />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
+                  <SignOutButton>
+                    <button
+                      type="button"
+                      className="btn-light-secondary"
+                      style={{
+                        width: '100%',
+                        backgroundColor: '#1e293b',
+                        color: '#f8fafc',
+                        borderColor: '#334155',
+                        padding: '10px 16px',
+                        cursor: 'pointer',
+                        borderRadius: '6px',
+                        fontWeight: 600,
+                      }}
+                      onClick={() => setAdminAccessDenied(false)}
+                    >
+                      Sign Out / Switch Account
+                    </button>
+                  </SignOutButton>
+
+                  {onBackToBlog && (
+                    <button
+                      type="button"
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#94a3b8',
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                        padding: '8px',
+                      }}
+                      onClick={onBackToBlog}
+                    >
+                      ← Return to Public Blog
+                    </button>
+                  )}
+                </div>
               </div>
+            ) : (
+              <div>
+                <p style={{ fontSize: '13px', color: 'var(--dark-text-muted)', marginBottom: '20px', lineHeight: 1.5 }}>
+                  Access to live ingress telemetry, registered users, and Cloudflare analytics requires an authorized Admin account authenticated via Clerk.
+                </p>
 
-              <div className="form-group">
-                <label>Admin Password</label>
-                <input
-                  type="password"
-                  className="form-input"
-                  placeholder="••••••••"
-                  value={adminPassword}
-                  onChange={(e) => setAdminPassword(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="modal-card-footer" style={{ justifyContent: onBackToBlog ? 'space-between' : 'flex-end' }}>
-              {onBackToBlog && (
                 <button
                   type="button"
-                  className="btn-light-secondary"
-                  style={{ backgroundColor: 'transparent', color: '#94a3b8', borderColor: '#1f2c44' }}
-                  onClick={onBackToBlog}
+                  className="btn-light-primary"
+                  style={{
+                    width: '100%',
+                    background: 'linear-gradient(135deg, #0284c7, #2563eb)',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    padding: '14px 20px',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    color: '#ffffff',
+                    boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)',
+                  }}
+                  onClick={handleAdminSSOClick}
                 >
-                  Back
+                  <span>🛡️</span> {isClerkSignedIn ? `Authorize Session (${clerkUser?.primaryEmailAddress?.emailAddress || 'Admin'})` : 'Sign In with Clerk (Admin SSO)'}
                 </button>
-              )}
-              <button
-                type="submit"
-                className="btn-light-primary"
-                style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)', border: 'none' }}
-                disabled={loginLoading}
-              >
-                {loginLoading ? 'Verifying...' : 'Authorize Access'}
-              </button>
-            </div>
-          </form>
+
+                {isClerkSignedIn && (
+                  <div style={{ textAlign: 'center', marginTop: '12px' }}>
+                    <button
+                      type="button"
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#60a5fa',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        textDecoration: 'underline',
+                      }}
+                      onClick={async () => {
+                        try {
+                          await clerk?.signOut?.();
+                          if (clerk && typeof (clerk as any).openSignIn === 'function') {
+                            (clerk as any).openSignIn();
+                          }
+                        } catch {}
+                      }}
+                    >
+                      Sign in with different account
+                    </button>
+                  </div>
+                )}
+
+                {onBackToBlog && (
+                  <div style={{ textAlign: 'center', marginTop: '16px' }}>
+                    <button
+                      type="button"
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#94a3b8',
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                        padding: '6px 12px',
+                      }}
+                      onClick={onBackToBlog}
+                    >
+                      ← Return to Public Blog
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -312,12 +429,24 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           >
             ← View Blog
           </button>
-          <button
-            style={{ background: 'none', border: 'none', color: '#f43f5e', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}
-            onClick={handleLogout}
-          >
-            Sign Out
-          </button>
+          {isClerkSignedIn ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <UserButton afterSignOutUrl="/" />
+              <button
+                style={{ background: 'none', border: 'none', color: '#f43f5e', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}
+                onClick={handleLogout}
+              >
+                Sign Out
+              </button>
+            </div>
+          ) : (
+            <button
+              style={{ background: 'none', border: 'none', color: '#f43f5e', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}
+              onClick={handleLogout}
+            >
+              Sign Out
+            </button>
+          )}
         </div>
       </header>
 

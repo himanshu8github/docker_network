@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useUser, useAuth, SignInButton, SignUpButton, UserButton } from '@clerk/clerk-react';
-import { AuthModal } from './components/AuthModal';
+import { useUser, useAuth, useClerk, SignInButton, SignUpButton, UserButton } from '@clerk/clerk-react';
 import { PostBlogModal } from './components/PostBlogModal';
 import { SetUsernameModal } from './components/SetUsernameModal';
 import { CustomToast, ToastMessage } from './components/CustomToast';
@@ -30,6 +29,7 @@ export default function App() {
   };
 
   // Clerk Auth state
+  const clerk = useClerk();
   const { isSignedIn, user: clerkUser, isLoaded } = useUser();
   const { getToken } = useAuth();
   const [isSetUsernameOpen, setIsSetUsernameOpen] = useState(false);
@@ -48,7 +48,6 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   // Modals & view state
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isPostOpen, setIsPostOpen] = useState(false);
   const [editingBlog, setEditingBlog] = useState<BlogItem | null>(null);
   const [readingBlog, setReadingBlog] = useState<BlogItem | null>(null);
@@ -146,17 +145,14 @@ export default function App() {
     setCurrentUser((prev: any) => ({ ...prev, username: newUsername, needsUsername: false }));
   };
 
-  const handleUserLoginSuccess = (token: string, user: any) => {
-    setUserToken(token);
-    setCurrentUser(user);
-    setIsAuthOpen(false);
-    addToast('success', `Welcome, @${user.username}!`);
-  };
-
   const handleOpenPostModal = async () => {
     if (!isSignedIn) {
-      addToast('info', 'Please sign in to write an article');
-      setIsAuthOpen(true);
+      addToast('info', 'Please sign in with Clerk to write an article');
+      if (clerk && typeof (clerk as any).openSignIn === 'function') {
+        (clerk as any).openSignIn();
+      } else if (clerk && typeof (clerk as any).redirectToSignIn === 'function') {
+        (clerk as any).redirectToSignIn();
+      }
       return;
     }
     const token = await getToken();
@@ -167,8 +163,12 @@ export default function App() {
 
   const handleOpenEditModal = async (blog: BlogItem) => {
     if (!isSignedIn) {
-      addToast('info', 'Please sign in to edit articles');
-      setIsAuthOpen(true);
+      addToast('info', 'Please sign in with Clerk to edit articles');
+      if (clerk && typeof (clerk as any).openSignIn === 'function') {
+        (clerk as any).openSignIn();
+      } else if (clerk && typeof (clerk as any).redirectToSignIn === 'function') {
+        (clerk as any).redirectToSignIn();
+      }
       return;
     }
     const token = await getToken();
@@ -629,15 +629,6 @@ export default function App() {
           </div>
         </div>
       )}
-
-      {/* User Sign In / Register Modal */}
-      <AuthModal
-        isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
-        onSuccess={handleUserLoginSuccess}
-        addToast={addToast}
-        apiUrl={apiUrl}
-      />
 
       {/* Write / Edit Article Modal */}
       <PostBlogModal

@@ -505,19 +505,61 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
           return (
             <div className="dark-panel-box">
-              <div className="dark-panel-header">
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '16px' }}>⚡</span>
-                    <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Real-Time Ingress Request Stream</h3>
+              <div className="dark-panel-header" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', flexWrap: 'wrap', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '20px' }}>⚡</span>
+                    <div>
+                      <h3 style={{ fontSize: '16px', fontWeight: 700, margin: 0, color: '#f8fafc' }}>
+                        GradMetric CloudOps — Real-Time Ingress Stream
+                      </h3>
+                      <span style={{ fontSize: '12px', color: 'var(--dark-text-dim)' }}>
+                        Live Request Observability & Journey Trace Engine • ({streamTotal} requests tracked in MySQL)
+                      </span>
+                    </div>
                   </div>
-                  <p style={{ fontSize: '12px', color: 'var(--dark-text-dim)', marginTop: '2px' }}>
-                    Telemetry Stream: <code style={{ color: '#38bdf8' }}>live-ingress-stream</code> • Group: <code style={{ color: '#a78bfa' }}>/gradmetric/production/ingress</code> • ({streamTotal} requests tracked in MySQL)
-                  </p>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <span className="badge-method GET">2xx: {metrics ? metrics.counters.status2xx : 0}</span>
+                    <span className="badge-method DELETE">4xx: {metrics ? metrics.counters.status4xx : 0}</span>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <span className="badge-method GET">2xx: {metrics ? metrics.counters.status2xx : 0}</span>
-                  <span className="badge-method DELETE">4xx: {metrics ? metrics.counters.status4xx : 0}</span>
+
+                {/* Prominent Log Group & Stream Configuration Bar */}
+                <div style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  gap: '12px',
+                  backgroundColor: '#090d16',
+                  padding: '10px 14px',
+                  borderRadius: '6px',
+                  border: '1px solid #1e293b',
+                  fontSize: '12px',
+                  width: '100%',
+                  boxSizing: 'border-box',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ color: '#94a3b8', fontWeight: 600 }}>Application:</span>
+                    <span style={{ color: '#f8fafc', fontWeight: 700, backgroundColor: '#1e293b', padding: '2px 8px', borderRadius: '4px' }}>
+                      GradMetric CloudOps
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ color: '#94a3b8', fontWeight: 600 }}>Log Group:</span>
+                    <code style={{ color: '#c084fc', fontWeight: 700, backgroundColor: 'rgba(168, 85, 247, 0.15)', padding: '3px 8px', borderRadius: '4px', border: '1px solid rgba(168, 85, 247, 0.3)' }}>
+                      /gradmetric-cloudops/production/ingress
+                    </code>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ color: '#94a3b8', fontWeight: 600 }}>Log Stream:</span>
+                    <code style={{ color: '#38bdf8', fontWeight: 700, backgroundColor: 'rgba(56, 189, 248, 0.15)', padding: '3px 8px', borderRadius: '4px', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+                      live-ingress-stream
+                    </code>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
+                    <span style={{ height: '8px', width: '8px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block' }}></span>
+                    <span style={{ color: '#10b981', fontWeight: 600, fontSize: '11px' }}>STREAMING ACTIVE</span>
+                  </div>
                 </div>
               </div>
 

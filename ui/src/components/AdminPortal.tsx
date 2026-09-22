@@ -65,18 +65,55 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   }, [isClerkSignedIn, getClerkToken, adminAccessDenied]);
 
-  // Fetch Dashboard Metrics & Stream (Protected)
-  const fetchMetrics = useCallback(
-    async (page = streamPage) => {
-      if (!adminToken) return;
-      setRefreshing(true);
-      try {
-        const res = await fetch(`${apiUrl}/dashboard/metrics?page=${page}&limit=10`, {
+  // Authenticated Admin Fetch with Dynamic Token Refresh & 401 Auto-Retry
+  const fetchWithAdminAuth = useCallback(
+    async (endpoint: string) => {
+      let token = adminToken;
+      if (getClerkToken && isClerkSignedIn) {
+        try {
+          token = (await getClerkToken()) || adminToken;
+          if (token && token !== adminToken) {
+            setAdminToken(token);
+          }
+        } catch {}
+      }
+      if (!token) return null;
+
+      const doFetch = (jwt: string) =>
+        fetch(`${apiUrl}${endpoint}`, {
           headers: {
-            Authorization: `Bearer ${adminToken}`,
+            Authorization: `Bearer ${jwt}`,
             'x-user-email': clerkUser?.primaryEmailAddress?.emailAddress || '',
           },
         });
+
+      let res = await doFetch(token);
+
+      // If token expired, refresh and retry once automatically
+      if (res.status === 401 && getClerkToken && isClerkSignedIn) {
+        try {
+          const fresh = await getClerkToken({ skipCache: true });
+          if (fresh) {
+            setAdminToken(fresh);
+            res = await doFetch(fresh);
+          }
+        } catch {}
+      }
+
+      return res;
+    },
+    [adminToken, apiUrl, clerkUser, getClerkToken, isClerkSignedIn],
+  );
+
+  // Fetch Dashboard Metrics & Stream (Protected)
+  const fetchMetrics = useCallback(
+    async (page = streamPage) => {
+      if (!adminToken && !isClerkSignedIn) return;
+      setRefreshing(true);
+      try {
+        const res = await fetchWithAdminAuth(`/dashboard/metrics?page=${page}&limit=10`);
+        if (!res) return;
+
         if (res.status === 401 || res.status === 403) {
           setAdminToken(null);
           localStorage.removeItem('cloudops_admin_token');
@@ -98,21 +135,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         setRefreshing(false);
       }
     },
-    [adminToken, apiUrl, streamPage, addToast, clerkUser],
+    [adminToken, isClerkSignedIn, streamPage, addToast, fetchWithAdminAuth],
   );
 
   // Fetch Users Directory (Protected)
   const fetchUsers = useCallback(
     async (page = usersPage) => {
-      if (!adminToken) return;
+      if (!adminToken && !isClerkSignedIn) return;
       try {
-        const res = await fetch(`${apiUrl}/dashboard/users?page=${page}&limit=10`, {
-          headers: {
-            Authorization: `Bearer ${adminToken}`,
-            'x-user-email': clerkUser?.primaryEmailAddress?.emailAddress || '',
-          },
-        });
-        if (res.ok) {
+        const res = await fetchWithAdminAuth(`/dashboard/users?page=${page}&limit=10`);
+        if (res && res.ok) {
           const data = await res.json();
           setUsersData(data);
         }
@@ -120,21 +152,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         // Silent error
       }
     },
-    [adminToken, apiUrl, usersPage, clerkUser],
+    [adminToken, isClerkSignedIn, usersPage, fetchWithAdminAuth],
   );
 
   // Fetch Visits Analytics (Protected)
   const fetchVisits = useCallback(
     async (page = visitsPage) => {
-      if (!adminToken) return;
+      if (!adminToken && !isClerkSignedIn) return;
       try {
-        const res = await fetch(`${apiUrl}/dashboard/visits?page=${page}&limit=10`, {
-          headers: {
-            Authorization: `Bearer ${adminToken}`,
-            'x-user-email': clerkUser?.primaryEmailAddress?.emailAddress || '',
-          },
-        });
-        if (res.ok) {
+        const res = await fetchWithAdminAuth(`/dashboard/visits?page=${page}&limit=10`);
+        if (res && res.ok) {
           const data = await res.json();
           setVisitsData(data);
         }
@@ -142,7 +169,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         // Silent error
       }
     },
-    [adminToken, apiUrl, visitsPage, clerkUser],
+    [adminToken, isClerkSignedIn, visitsPage, fetchWithAdminAuth],
   );
 
   useEffect(() => {

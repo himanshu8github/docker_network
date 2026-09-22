@@ -2,10 +2,12 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like } from 'typeorm';
 import { Blog } from './blog.entity';
+import { User } from '../users/user.entity';
 import { CreateBlogDto } from './dto/create-blog.dto';
 import { UpdateBlogDto } from './dto/update-blog.dto';
 import { TokenPayload } from '../auth/crypto.service';
@@ -15,16 +17,44 @@ export class BlogsService {
   constructor(
     @InjectRepository(Blog)
     private readonly blogRepository: Repository<Blog>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) {}
 
   // Create Blog (Authenticated User or Admin)
   async create(createBlogDto: CreateBlogDto, user: any): Promise<Blog> {
+    let authorId = user?.sub || user?.id;
+    let authorUsername = user?.username;
+
+    // Ensure we resolve a real database user for the foreign key constraint
+    let dbAuthor: User | null = null;
+    if (authorId && authorId > 0) {
+      dbAuthor = await this.userRepository.findOne({ where: { id: authorId } });
+    }
+
+    if (!dbAuthor && user?.clerkId) {
+      dbAuthor = await this.userRepository.findOne({ where: { clerkId: user.clerkId } });
+    }
+
+    if (!dbAuthor && user?.email) {
+      dbAuthor = await this.userRepository.findOne({ where: { email: user.email } });
+    }
+
+    if (dbAuthor) {
+      authorId = dbAuthor.id;
+      authorUsername = dbAuthor.username || authorUsername;
+    }
+
+    if (!authorId || authorId <= 0) {
+      throw new UnauthorizedException('Valid author account is required to publish articles');
+    }
+
     const blog = this.blogRepository.create({
       title: createBlogDto.title.trim(),
       content: createBlogDto.content.trim(),
       category: createBlogDto.category?.trim() || 'DevOps',
-      authorId: user.sub,
-      authorUsername: user.username,
+      authorId,
+      authorUsername: authorUsername || 'author',
     });
     return await this.blogRepository.save(blog);
   }
@@ -85,8 +115,21 @@ export class BlogsService {
   // Update Blog (Author or Admin Only)
   async update(id: number, updateBlogDto: UpdateBlogDto, user: any): Promise<Blog> {
     const blog = await this.findOne(id);
+    const userId = user?.sub || user?.id;
 
-    if (blog.authorId !== user.sub && user.role !== 'admin') {
+    let isOwner = blog.authorId === userId;
+    if (!isOwner && (user?.clerkId || user?.email)) {
+      const dbAuthor = await this.userRepository.findOne({ where: { id: blog.authorId } });
+      if (
+        dbAuthor &&
+        ((user?.clerkId && dbAuthor.clerkId === user.clerkId) ||
+          (user?.email && dbAuthor.email === user.email))
+      ) {
+        isOwner = true;
+      }
+    }
+
+    if (!isOwner && user?.role !== 'admin') {
       throw new ForbiddenException('You can only update your own blog posts');
     }
 
@@ -103,8 +146,21 @@ export class BlogsService {
   // Delete Blog (Author or Admin Only)
   async delete(id: number, user: any): Promise<{ success: boolean; message: string }> {
     const blog = await this.findOne(id);
+    const userId = user?.sub || user?.id;
 
-    if (blog.authorId !== user.sub && user.role !== 'admin') {
+    let isOwner = blog.authorId === userId;
+    if (!isOwner && (user?.clerkId || user?.email)) {
+      const dbAuthor = await this.userRepository.findOne({ where: { id: blog.authorId } });
+      if (
+        dbAuthor &&
+        ((user?.clerkId && dbAuthor.clerkId === user.clerkId) ||
+          (user?.email && dbAuthor.email === user.email))
+      ) {
+        isOwner = true;
+      }
+    }
+
+    if (!isOwner && user?.role !== 'admin') {
       throw new ForbiddenException('You can only delete your own blog posts');
     }
 

@@ -221,28 +221,53 @@ export class AuthService implements OnModuleInit {
 
     // Check if taken by another user
     const existing = await this.userRepository.findOne({ where: { username } });
-    if (existing && existing.id !== userPayload.sub && existing.clerkId !== userPayload.clerkId) {
-      throw new ConflictException('Username is already taken. Please choose another.');
+    if (existing) {
+      const isSameUser =
+        existing.id === userPayload.sub ||
+        (userPayload.clerkId && existing.clerkId === userPayload.clerkId) ||
+        (userPayload.email && existing.email === userPayload.email);
+
+      if (!isSameUser) {
+        throw new ConflictException('Username is already taken. Please choose another.');
+      }
+      return {
+        success: true,
+        username: existing.username,
+        message: 'Username successfully updated',
+      };
     }
 
-    // Find user record by sub or clerkId
-    let user = await this.userRepository.findOne({
-      where: [{ id: userPayload.sub }, { clerkId: userPayload.clerkId }],
-    });
+    // Find user record by sub, clerkId, or email
+    const searchConditions: any[] = [];
+    if (userPayload.sub && userPayload.sub > 0) searchConditions.push({ id: userPayload.sub });
+    if (userPayload.clerkId) searchConditions.push({ clerkId: userPayload.clerkId });
+    if (userPayload.email) searchConditions.push({ email: userPayload.email });
+
+    let user = searchConditions.length > 0
+      ? await this.userRepository.findOne({ where: searchConditions })
+      : null;
 
     if (!user) {
-      throw new NotFoundException('User profile not found');
+      let userRole = await this.roleRepository.findOne({ where: { name: 'user' } });
+      const newUser = this.userRepository.create({
+        clerkId: userPayload.clerkId,
+        email: userPayload.email || `${userPayload.clerkId || Date.now()}@clerk.user`,
+        username,
+        roleId: userRole ? userRole.id : 2,
+        role: userRole || undefined,
+      });
+      user = await this.userRepository.save(newUser);
+    } else {
+      user.username = username;
+      user = await this.userRepository.save(user);
     }
-
-    user.username = username;
-    const saved = await this.userRepository.save(user);
 
     // Update Bloom Filter
     this.bloomFilterService.add(username);
 
     return {
       success: true,
-      username: saved.username,
+      username: user.username,
       message: 'Username successfully updated',
     };
   }

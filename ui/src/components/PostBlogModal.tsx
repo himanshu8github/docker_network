@@ -16,6 +16,9 @@ interface PostBlogModalProps {
   onClose: () => void;
   onSuccess: () => void;
   token: string | null;
+  getToken?: (options?: any) => Promise<string | null>;
+  userEmail?: string;
+  authorUsername?: string;
   apiUrl: string;
   addToast: (type: 'success' | 'error' | 'info', msg: string) => void;
   editBlog?: BlogItem | null;
@@ -26,6 +29,9 @@ export const PostBlogModal: React.FC<PostBlogModalProps> = ({
   onClose,
   onSuccess,
   token,
+  getToken,
+  userEmail,
+  authorUsername,
   apiUrl,
   addToast,
   editBlog,
@@ -59,7 +65,16 @@ export const PostBlogModal: React.FC<PostBlogModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!token) {
+    let activeToken = token;
+    if (getToken) {
+      try {
+        activeToken = (await getToken()) || token;
+      } catch (err) {
+        console.warn('Could not fetch fresh Clerk token:', err);
+      }
+    }
+
+    if (!activeToken) {
       addToast('error', 'Please sign in to publish blogs');
       return;
     }
@@ -84,18 +99,35 @@ export const PostBlogModal: React.FC<PostBlogModalProps> = ({
       const url = editBlog ? `${apiUrl}/blogs/${editBlog.id}` : `${apiUrl}/blogs`;
       const method = editBlog ? 'PATCH' : 'POST';
 
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          title: title.trim(),
-          content: content.trim(),
-          category,
-        }),
-      });
+      const sendRequest = async (jwt: string) => {
+        return await fetch(url, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${jwt}`,
+            'x-user-email': userEmail || '',
+            'x-user-name': authorUsername || '',
+          },
+          body: JSON.stringify({
+            title: title.trim(),
+            content: content.trim(),
+            category,
+          }),
+        });
+      };
+
+      let res = await sendRequest(activeToken);
+
+      // If token expired (401), automatically refresh token and retry once!
+      if (res.status === 401 && getToken) {
+        try {
+          const freshToken = await getToken({ skipCache: true });
+          if (freshToken) {
+            activeToken = freshToken;
+            res = await sendRequest(freshToken);
+          }
+        } catch {}
+      }
 
       const data = await res.json();
 

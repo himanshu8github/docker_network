@@ -4,6 +4,7 @@ interface SetUsernameModalProps {
   isOpen: boolean;
   apiUrl: string;
   token: string | null;
+  getToken?: (options?: any) => Promise<string | null>;
   currentEmail: string;
   onSuccess: (newUsername: string) => void;
   addToast: (type: 'success' | 'error' | 'info', msg: string) => void;
@@ -13,6 +14,7 @@ export const SetUsernameModal: React.FC<SetUsernameModalProps> = ({
   isOpen,
   apiUrl,
   token,
+  getToken,
   currentEmail,
   onSuccess,
   addToast,
@@ -39,14 +41,39 @@ export const SetUsernameModal: React.FC<SetUsernameModalProps> = ({
     setErrorMsg('');
 
     try {
-      const res = await fetch(`${apiUrl}/auth/set-username`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ username }),
-      });
+      let activeToken = token;
+      if (getToken) {
+        try {
+          activeToken = (await getToken()) || token;
+        } catch (tokenErr) {
+          console.warn('Could not fetch fresh Clerk token:', tokenErr);
+        }
+      }
+
+      const sendRequest = async (jwt: string) => {
+        return await fetch(`${apiUrl}/auth/set-username`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${jwt}`,
+            'x-user-email': currentEmail || '',
+          },
+          body: JSON.stringify({ username }),
+        });
+      };
+
+      let res = await sendRequest(activeToken || '');
+
+      // Retry once on 401 with refreshed token
+      if (res.status === 401 && getToken) {
+        try {
+          const freshToken = await getToken({ skipCache: true });
+          if (freshToken) {
+            activeToken = freshToken;
+            res = await sendRequest(freshToken);
+          }
+        } catch {}
+      }
 
       const data = await res.json();
       if (!res.ok) {

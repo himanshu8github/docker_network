@@ -15,18 +15,10 @@ interface BlogItem {
 }
 
 export default function App() {
-  // Theme state: light or dark (persisted)
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    return (localStorage.getItem('gradmetric_theme') as 'light' | 'dark') || 'light';
-  });
-
-  const toggleTheme = () => {
-    setTheme((prev) => {
-      const next = prev === 'light' ? 'dark' : 'light';
-      localStorage.setItem('gradmetric_theme', next);
-      return next;
-    });
-  };
+  // Clear any legacy dark theme preference
+  useEffect(() => {
+    localStorage.removeItem('gradmetric_theme');
+  }, []);
 
   // Clerk Auth state
   const clerk = useClerk();
@@ -180,11 +172,31 @@ export default function App() {
   const handleDeleteBlog = async (blogId: number) => {
     if (!confirm('Are you sure you want to delete this blog post?')) return;
     try {
-      const token = (await getToken()) || userToken;
-      const res = await fetch(`${apiUrl}/blogs/${blogId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      let activeToken = userToken;
+      if (getToken) {
+        try {
+          activeToken = (await getToken()) || userToken;
+        } catch {}
+      }
+
+      const sendReq = (t: string) =>
+        fetch(`${apiUrl}/blogs/${blogId}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${t}`,
+            'x-user-email': clerkUser?.primaryEmailAddress?.emailAddress || '',
+          },
+        });
+
+      let res = await sendReq(activeToken || '');
+      if (res.status === 401 && getToken) {
+        const fresh = await getToken({ skipCache: true });
+        if (fresh) {
+          activeToken = fresh;
+          res = await sendReq(fresh);
+        }
+      }
+
       if (res.ok) {
         addToast('success', 'Blog post removed successfully');
         setBlogs((prev) => prev.filter((b) => b.id !== blogId));
@@ -202,7 +214,7 @@ export default function App() {
 
   // Render Public Blog Portal
   return (
-    <div className={theme === 'dark' ? 'dark-portal' : 'light-portal'}>
+    <div className="light-portal">
       <CustomToast toasts={toasts} onDismiss={removeToast} />
 
       <div className="portal-container">
@@ -239,16 +251,6 @@ export default function App() {
           </div>
 
           <div className="header-actions">
-            {/* Theme Toggle Button */}
-            <button
-              className="btn-light-secondary"
-              onClick={toggleTheme}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}
-              title="Toggle Light / Dark Mode"
-            >
-              {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
-            </button>
-
             <button className="btn-light-primary" onClick={handleOpenPostModal}>
               <span>+</span>
               <span>Write Article</span>
@@ -259,11 +261,11 @@ export default function App() {
                 <div
                   className="author-chip"
                   style={{
-                    background: theme === 'dark' ? '#141d2f' : '#ffffff',
+                    background: '#ffffff',
                     padding: '4px 10px',
                     borderRadius: '16px',
-                    border: theme === 'dark' ? '1px solid #1f2c44' : '1px solid #e9e5de',
-                    color: theme === 'dark' ? '#f8fafc' : '#1e293b',
+                    border: '1px solid #e9e5de',
+                    color: '#1e293b',
                   }}
                 >
                   <span style={{ fontSize: '12px', fontWeight: 600 }}>
@@ -639,6 +641,9 @@ export default function App() {
         }}
         onSuccess={() => fetchBlogs(currentPage, selectedCategory, searchTerm)}
         token={userToken}
+        getToken={getToken}
+        userEmail={clerkUser?.primaryEmailAddress?.emailAddress || ''}
+        authorUsername={currentUser?.username || clerkUser?.username || ''}
         apiUrl={apiUrl}
         addToast={addToast}
         editBlog={editingBlog}
@@ -649,6 +654,7 @@ export default function App() {
         isOpen={isSetUsernameOpen}
         apiUrl={apiUrl}
         token={userToken}
+        getToken={getToken}
         currentEmail={clerkUser?.primaryEmailAddress?.emailAddress || ''}
         onSuccess={handleUsernameSuccess}
         addToast={addToast}

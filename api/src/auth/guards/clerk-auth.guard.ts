@@ -48,7 +48,10 @@ export class ClerkAuthGuard implements CanActivate {
       }
 
       try {
-        const payload: any = await verifyToken(token, { secretKey });
+        const payload: any = await verifyToken(token, {
+          secretKey,
+          clockSkewInMs: 60000,
+        });
         if (payload && payload.sub) {
           const clerkId = payload.sub;
 
@@ -105,10 +108,10 @@ export class ClerkAuthGuard implements CanActivate {
             // Neither email nor clerkId found in DB -> Provision new user
             const finalEmail = userEmail || `${clerkId}@clerk.user`;
             const cleanId = clerkId.replace(/[^a-zA-Z0-9]/g, '');
-            const username = `u${cleanId.slice(-6)}`.slice(0, 10);
+            let username = `u${cleanId.slice(-6)}`.slice(0, 10);
 
             let role = await this.roleRepository.findOne({ where: { name: 'user' } });
-            const newUser = this.userRepository.create({
+            let newUser = this.userRepository.create({
               clerkId,
               email: finalEmail,
               username,
@@ -117,9 +120,27 @@ export class ClerkAuthGuard implements CanActivate {
             });
             try {
               dbUser = await this.userRepository.save(newUser);
-            } catch {
-              dbUser = await this.userRepository.findOne({ where: { clerkId }, relations: ['role'] });
+            } catch (err: any) {
+              this.logger.warn(`Initial user creation collision: ${err.message}. Retrying with unique handle.`);
+              const fallbackHandle = `u${Date.now().toString(36).slice(-5)}${Math.random().toString(36).slice(2, 5)}`.slice(0, 10);
+              newUser.username = fallbackHandle;
+              try {
+                dbUser = await this.userRepository.save(newUser);
+              } catch {
+                dbUser = await this.userRepository.findOne({
+                  where: [{ clerkId }, { email: finalEmail }],
+                  relations: ['role'],
+                });
+              }
             }
+          }
+
+          // Fallback if dbUser still unassigned
+          if (!dbUser) {
+            dbUser = await this.userRepository.findOne({
+              where: [{ clerkId }, ...(userEmail ? [{ email: userEmail }] : [])],
+              relations: ['role'],
+            });
           }
 
           // Re-fetch role if missing

@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -13,7 +14,7 @@ import {
 import { BlogsService } from './blogs.service';
 import { CreateBlogDto } from './dto/create-blog.dto';
 import { UpdateBlogDto } from './dto/update-blog.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ClerkAuthGuard } from '../auth/guards/clerk-auth.guard';
 
 @Controller('blogs')
 export class BlogsController {
@@ -35,18 +36,24 @@ export class BlogsController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(ClerkAuthGuard)
   create(@Body() createBlogDto: CreateBlogDto, @Req() req: any) {
     return this.blogsService.create(createBlogDto, req.user);
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(ClerkAuthGuard)
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateBlogDto: UpdateBlogDto,
     @Req() req: any,
   ) {
     return this.blogsService.update(id, updateBlogDto, req.user);
+  }
+
+  @Delete(':id')
+  @UseGuards(ClerkAuthGuard)
+  delete(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    return this.blogsService.delete(id, req.user);
   }
 }

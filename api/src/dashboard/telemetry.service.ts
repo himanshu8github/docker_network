@@ -4,14 +4,19 @@ import { Repository } from 'typeorm';
 import { RequestLog } from './request-log.entity';
 
 export interface RequestLogEntry {
-  id: number | string;
-  timestamp: string;
+  id?: number | string;
+  timestamp?: string;
+  journeyId?: string;
+  referenceId?: string;
   method: string;
   url: string;
   statusCode: number;
   durationMs: number;
-  clientIp: string;
+  userIp: string;
+  realIp: string;
   country: string;
+  userLocation: string;
+  userDeviceId?: string;
   cfRay: string;
   userAgent: string;
 }
@@ -61,17 +66,22 @@ export class TelemetryService implements OnModuleInit {
 
     try {
       const log = this.requestLogRepository.create({
+        journeyId: entry.journeyId,
+        referenceId: entry.referenceId,
         method: entry.method,
         url: entry.url,
         statusCode: entry.statusCode,
         durationMs: entry.durationMs,
-        clientIp: entry.clientIp,
+        userIp: entry.userIp,
+        realIp: entry.realIp,
         country: entry.country,
+        userLocation: entry.userLocation,
+        userDeviceId: entry.userDeviceId,
         cfRay: entry.cfRay,
         userAgent: entry.userAgent,
       });
       await this.requestLogRepository.save(log);
-    } catch (err) {
+    } catch (err: any) {
       console.warn('[Telemetry] Error saving request log to MySQL:', err.message);
     }
   }
@@ -92,12 +102,17 @@ export class TelemetryService implements OnModuleInit {
         items: logs.map((log) => ({
           id: log.id,
           timestamp: log.createdAt ? log.createdAt.toISOString() : new Date().toISOString(),
+          journeyId: log.journeyId || '--',
+          referenceId: log.referenceId || log.cfRay || '--',
           method: log.method,
           url: log.url,
           statusCode: log.statusCode,
           durationMs: log.durationMs,
-          clientIp: log.clientIp,
+          userIp: log.userIp,
+          realIp: log.realIp,
           country: log.country,
+          userLocation: log.userLocation || log.country,
+          userDeviceId: log.userDeviceId || '--',
           cfRay: log.cfRay,
           userAgent: log.userAgent,
         })),

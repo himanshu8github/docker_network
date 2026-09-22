@@ -11,6 +11,14 @@ export class RequestLog {
   @PrimaryGeneratedColumn()
   id: number;
 
+  @Index()
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  journeyId: string;
+
+  @Index()
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  referenceId: string;
+
   @Column({ type: 'varchar', length: 16 })
   method: string;
 
@@ -24,10 +32,19 @@ export class RequestLog {
   durationMs: number;
 
   @Column({ type: 'varchar', length: 100, default: '127.0.0.1' })
-  clientIp: string;
+  userIp: string;
 
-  @Column({ type: 'varchar', length: 50, default: 'LOCAL' })
+  @Column({ type: 'varchar', length: 100, default: '127.0.0.1' })
+  realIp: string;
+
+  @Column({ type: 'varchar', length: 100, default: 'LOCAL' })
   country: string;
+
+  @Column({ type: 'varchar', length: 255, default: 'Unknown' })
+  userLocation: string;
+
+  @Column({ type: 'varchar', length: 150, nullable: true })
+  userDeviceId: string;
 
   @Column({ type: 'varchar', length: 100, default: 'direct' })
   cfRay: string;

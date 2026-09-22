@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { AuthModal } from './components/AuthModal';
+import { useUser, useAuth, useClerk, SignInButton, SignUpButton, UserButton } from '@clerk/clerk-react';
 import { PostBlogModal } from './components/PostBlogModal';
+import { SetUsernameModal } from './components/SetUsernameModal';
 import { CustomToast, ToastMessage } from './components/CustomToast';
 
 interface BlogItem {
@@ -14,6 +15,25 @@ interface BlogItem {
 }
 
 export default function App() {
+  // Theme state: light or dark (persisted)
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return (localStorage.getItem('gradmetric_theme') as 'light' | 'dark') || 'light';
+  });
+
+  const toggleTheme = () => {
+    setTheme((prev) => {
+      const next = prev === 'light' ? 'dark' : 'light';
+      localStorage.setItem('gradmetric_theme', next);
+      return next;
+    });
+  };
+
+  // Clerk Auth state
+  const clerk = useClerk();
+  const { isSignedIn, user: clerkUser, isLoaded } = useUser();
+  const { getToken } = useAuth();
+  const [isSetUsernameOpen, setIsSetUsernameOpen] = useState(false);
+
   // Blog feed state
   const [blogs, setBlogs] = useState<BlogItem[]>([]);
   const [totalBlogs, setTotalBlogs] = useState(0);
@@ -28,7 +48,6 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   // Modals & view state
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isPostOpen, setIsPostOpen] = useState(false);
   const [editingBlog, setEditingBlog] = useState<BlogItem | null>(null);
   const [readingBlog, setReadingBlog] = useState<BlogItem | null>(null);
@@ -55,17 +74,37 @@ export default function App() {
       ? 'https://api.gradmetric.me'
       : 'http://localhost:3000');
 
-  // Restore saved user token
+  // Sync Clerk Session with Backend Profile
   useEffect(() => {
-    const savedToken = localStorage.getItem('cloudops_user_token');
-    const savedUser = localStorage.getItem('cloudops_user_data');
-    if (savedToken && savedUser) {
-      setUserToken(savedToken);
-      try {
-        setCurrentUser(JSON.parse(savedUser));
-      } catch {}
+    if (isSignedIn && isLoaded) {
+      (async () => {
+        try {
+          const token = await getToken();
+          setUserToken(token);
+          if (token) {
+            const res = await fetch(`${apiUrl}/auth/me`, {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'x-user-email': clerkUser?.primaryEmailAddress?.emailAddress || '',
+              },
+            });
+            if (res.ok) {
+              const data = await res.json();
+              setCurrentUser(data.user);
+              if (data.user?.needsUsername) {
+                setIsSetUsernameOpen(true);
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('Could not sync user profile:', err);
+        }
+      })();
+    } else if (!isSignedIn && isLoaded) {
+      setUserToken(null);
+      setCurrentUser(null);
     }
-  }, []);
+  }, [isSignedIn, isLoaded, getToken, apiUrl, clerkUser]);
 
   // Record visit on initial page load (tracking Cloudflare headers & page views)
   useEffect(() => {
@@ -101,46 +140,69 @@ export default function App() {
     fetchBlogs(currentPage, selectedCategory, searchTerm);
   }, [currentPage, selectedCategory, searchTerm, fetchBlogs]);
 
-  const handleUserLoginSuccess = (token: string, user: any) => {
-    setUserToken(token);
-    setCurrentUser(user);
-    localStorage.setItem('cloudops_user_token', token);
-    localStorage.setItem('cloudops_user_data', JSON.stringify(user));
+  const handleUsernameSuccess = (newUsername: string) => {
+    setIsSetUsernameOpen(false);
+    setCurrentUser((prev: any) => ({ ...prev, username: newUsername, needsUsername: false }));
   };
 
-  const handleUserLogout = () => {
-    setUserToken(null);
-    setCurrentUser(null);
-    localStorage.removeItem('cloudops_user_token');
-    localStorage.removeItem('cloudops_user_data');
-    addToast('info', 'Logged out successfully');
-  };
-
-  const handleOpenPostModal = () => {
-    if (!userToken) {
-      addToast('info', 'Please sign in to write an article');
-      setIsAuthOpen(true);
+  const handleOpenPostModal = async () => {
+    if (!isSignedIn) {
+      addToast('info', 'Please sign in with Clerk to write an article');
+      if (clerk && typeof (clerk as any).openSignIn === 'function') {
+        (clerk as any).openSignIn();
+      } else if (clerk && typeof (clerk as any).redirectToSignIn === 'function') {
+        (clerk as any).redirectToSignIn();
+      }
       return;
     }
+    const token = await getToken();
+    setUserToken(token);
     setEditingBlog(null);
     setIsPostOpen(true);
   };
 
-  const handleOpenEditModal = (blog: BlogItem) => {
-    if (!userToken) {
-      addToast('info', 'Please sign in to edit articles');
-      setIsAuthOpen(true);
+  const handleOpenEditModal = async (blog: BlogItem) => {
+    if (!isSignedIn) {
+      addToast('info', 'Please sign in with Clerk to edit articles');
+      if (clerk && typeof (clerk as any).openSignIn === 'function') {
+        (clerk as any).openSignIn();
+      } else if (clerk && typeof (clerk as any).redirectToSignIn === 'function') {
+        (clerk as any).redirectToSignIn();
+      }
       return;
     }
+    const token = await getToken();
+    setUserToken(token);
     setEditingBlog(blog);
     setIsPostOpen(true);
   };
 
+  const handleDeleteBlog = async (blogId: number) => {
+    if (!confirm('Are you sure you want to delete this blog post?')) return;
+    try {
+      const token = (await getToken()) || userToken;
+      const res = await fetch(`${apiUrl}/blogs/${blogId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        addToast('success', 'Blog post removed successfully');
+        setBlogs((prev) => prev.filter((b) => b.id !== blogId));
+        setTotalBlogs((prev) => Math.max(0, prev - 1));
+      } else {
+        const data = await res.json();
+        addToast('error', data.message || 'Failed to delete blog');
+      }
+    } catch (err: any) {
+      addToast('error', err.message);
+    }
+  };
+
   const categories = ['All', 'Docker', 'AWS', 'DevOps', 'Security', 'Networking', 'Architecture'];
 
-  // Render Public Blog Portal (Screenshot 1 Cream Aesthetic)
+  // Render Public Blog Portal
   return (
-    <div className="light-portal">
+    <div className={theme === 'dark' ? 'dark-portal' : 'light-portal'}>
       <CustomToast toasts={toasts} onDismiss={removeToast} />
 
       <div className="portal-container">
@@ -151,7 +213,7 @@ export default function App() {
             <div className="brand-text">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <h1 style={{ margin: 0, letterSpacing: '-0.02em' }}>
-                  GradMetric<span style={{ color: '#7c3aed', fontWeight: 600 }}>.me</span>
+                  GradMetric<span style={{ color: '#7c3aed', fontWeight: 600 }}>.CloudOps</span>
                 </h1>
                 <span className="total-blogs-pill" title="Total articles on platform">
                   ⚡ {totalBlogs} {totalBlogs === 1 ? 'Article' : 'Articles'}
@@ -161,7 +223,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Search Bar matching Screenshot 1 */}
+          {/* Search Bar */}
           <div className="search-wrap">
             <span className="search-icon">🔍</span>
             <input
@@ -177,53 +239,50 @@ export default function App() {
           </div>
 
           <div className="header-actions">
+            {/* Theme Toggle Button */}
+            <button
+              className="btn-light-secondary"
+              onClick={toggleTheme}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}
+              title="Toggle Light / Dark Mode"
+            >
+              {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
+            </button>
+
             <button className="btn-light-primary" onClick={handleOpenPostModal}>
               <span>+</span>
               <span>Write Article</span>
             </button>
 
-            {currentUser ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {isSignedIn ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div
                   className="author-chip"
                   style={{
-                    background: '#ffffff',
+                    background: theme === 'dark' ? '#141d2f' : '#ffffff',
                     padding: '4px 10px',
                     borderRadius: '16px',
-                    border: '1px solid #e9e5de',
+                    border: theme === 'dark' ? '1px solid #1f2c44' : '1px solid #e9e5de',
+                    color: theme === 'dark' ? '#f8fafc' : '#1e293b',
                   }}
                 >
-                  <div
-                    className="avatar-circle"
-                    style={{ width: '24px', height: '24px', fontSize: '11px' }}
-                  >
-                    {currentUser.username[0].toUpperCase()}
-                  </div>
                   <span style={{ fontSize: '12px', fontWeight: 600 }}>
-                    @{currentUser.username}
+                    @{currentUser?.username || clerkUser?.username || 'author'}
                   </span>
                 </div>
-                <button
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#e11d48',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                  }}
-                  onClick={handleUserLogout}
-                >
-                  Logout
-                </button>
+                <UserButton afterSignOutUrl="/" />
               </div>
             ) : (
-              <button
-                className="btn-light-secondary"
-                onClick={() => setIsAuthOpen(true)}
-              >
-                Sign In
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <SignInButton mode="modal">
+                  <button className="btn-light-secondary">Sign In</button>
+                </SignInButton>
+                <SignUpButton mode="modal">
+                  <button className="btn-light-primary" style={{ padding: '8px 14px' }}>
+                    Sign Up
+                  </button>
+                </SignUpButton>
+              </div>
             )}
           </div>
         </header>
@@ -313,7 +372,10 @@ export default function App() {
             {blogs.map((b) => {
               const isAuthor =
                 currentUser &&
-                (currentUser.id === b.authorId || currentUser.role === 'admin');
+                (currentUser.id === b.authorId ||
+                  currentUser.sub === b.authorId ||
+                  currentUser.username === b.authorUsername ||
+                  currentUser.role === 'admin');
               const dateStr = new Date(b.createdAt).toLocaleDateString([], {
                 month: 'short',
                 day: 'numeric',
@@ -369,15 +431,27 @@ export default function App() {
                       Read Full Article →
                     </span>
                     {isAuthor && (
-                      <button
-                        className="btn-edit-blog"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenEditModal(b);
-                        }}
-                      >
-                        ✎ Edit Post
-                      </button>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          className="btn-edit-blog"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenEditModal(b);
+                          }}
+                        >
+                          ✎ Edit
+                        </button>
+                        <button
+                          className="btn-edit-blog"
+                          style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteBlog(b.id);
+                          }}
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
                     )}
                   </div>
                 </article>
@@ -390,7 +464,10 @@ export default function App() {
             {blogs.map((b) => {
               const isAuthor =
                 currentUser &&
-                (currentUser.id === b.authorId || currentUser.role === 'admin');
+                (currentUser.id === b.authorId ||
+                  currentUser.sub === b.authorId ||
+                  currentUser.username === b.authorUsername ||
+                  currentUser.role === 'admin');
               const dateStr = new Date(b.createdAt).toLocaleDateString([], {
                 month: 'short',
                 day: 'numeric',
@@ -441,15 +518,27 @@ export default function App() {
                       Read →
                     </span>
                     {isAuthor && (
-                      <button
-                        className="btn-edit-blog"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenEditModal(b);
-                        }}
-                      >
-                        ✎ Edit Post
-                      </button>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          className="btn-edit-blog"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenEditModal(b);
+                          }}
+                        >
+                          ✎ Edit
+                        </button>
+                        <button
+                          className="btn-edit-blog"
+                          style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteBlog(b.id);
+                          }}
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
                     )}
                   </div>
                 </article>
@@ -541,15 +630,6 @@ export default function App() {
         </div>
       )}
 
-      {/* User Sign In / Register Modal */}
-      <AuthModal
-        isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
-        onSuccess={handleUserLoginSuccess}
-        addToast={addToast}
-        apiUrl={apiUrl}
-      />
-
       {/* Write / Edit Article Modal */}
       <PostBlogModal
         isOpen={isPostOpen}
@@ -562,6 +642,16 @@ export default function App() {
         apiUrl={apiUrl}
         addToast={addToast}
         editBlog={editingBlog}
+      />
+
+      {/* Set Username Modal (4-10 alphanumeric characters) */}
+      <SetUsernameModal
+        isOpen={isSetUsernameOpen}
+        apiUrl={apiUrl}
+        token={userToken}
+        currentEmail={clerkUser?.primaryEmailAddress?.emailAddress || ''}
+        onSuccess={handleUsernameSuccess}
+        addToast={addToast}
       />
     </div>
   );

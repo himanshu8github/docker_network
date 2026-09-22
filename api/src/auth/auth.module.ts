@@ -8,11 +8,12 @@ import { AuthController } from './auth.controller';
 import { CryptoService } from './crypto.service';
 import { BloomFilterService } from './bloom-filter.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { ClerkAuthGuard } from './guards/clerk-auth.guard';
 
 @Module({
   imports: [TypeOrmModule.forFeature([User, Role, RefreshToken])],
   controllers: [AuthController],
-  providers: [AuthService, CryptoService, BloomFilterService, JwtAuthGuard],
-  exports: [AuthService, CryptoService, JwtAuthGuard, BloomFilterService],
+  providers: [AuthService, CryptoService, BloomFilterService, JwtAuthGuard, ClerkAuthGuard],
+  exports: [AuthService, CryptoService, JwtAuthGuard, ClerkAuthGuard, BloomFilterService, TypeOrmModule],
 })
 export class AuthModule {}

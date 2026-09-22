@@ -12,6 +12,7 @@
     "preview:admin": "vite preview --config vite.admin.config.ts --port 3002 --host"
   },
   "dependencies": {
+    "@clerk/clerk-react": "^5.61.10",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

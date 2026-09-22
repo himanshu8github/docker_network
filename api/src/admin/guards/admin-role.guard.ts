@@ -3,33 +3,24 @@ import {
   ExecutionContext,
   Injectable,
   ForbiddenException,
-  UnauthorizedException,
 } from '@nestjs/common';
-import { CryptoService, TokenPayload } from '../../auth/crypto.service';
+import { ClerkAuthGuard } from '../../auth/guards/clerk-auth.guard';
 
 @Injectable()
 export class AdminRoleGuard implements CanActivate {
-  constructor(private readonly cryptoService: CryptoService) {}
+  constructor(private readonly clerkAuthGuard: ClerkAuthGuard) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const isAuth = await this.clerkAuthGuard.canActivate(context);
+    if (!isAuth) return false;
+
     const request = context.switchToHttp().getRequest();
-    const authHeader = request.headers['authorization'];
+    const user = request.user;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new UnauthorizedException('Admin authentication token required');
+    if (!user || user.role !== 'admin') {
+      throw new ForbiddenException('Access denied: Admin role required');
     }
 
-    const token = authHeader.split(' ')[1];
-    try {
-      const payload: TokenPayload = this.cryptoService.verifyToken(token);
-      if (payload.role !== 'admin') {
-        throw new ForbiddenException('Access denied: Admin role required');
-      }
-      request.user = payload;
-      return true;
-    } catch (err) {
-      if (err instanceof ForbiddenException) throw err;
-      throw new UnauthorizedException('Invalid or expired admin token');
-    }
+    return true;
   }
 }

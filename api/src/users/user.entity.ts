@@ -21,8 +21,11 @@ export class User {
   @Column({ type: 'varchar', length: 255, unique: true })
   email: string;
 
-  @Column({ type: 'varchar', length: 255 })
-  passwordHash: string;
+  @Column({ type: 'varchar', length: 255, nullable: true, unique: true })
+  clerkId?: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  passwordHash?: string;
 
   @Column({ type: 'int', default: 2 })
   roleId: number;

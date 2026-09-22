@@ -24,18 +24,45 @@ async function bootstrap() {
 
   // Enable CORS for frontend clients (local dev & production custom domains)
   app.enableCors({
-    origin: [
-      'https://gradmetric.me',
-      'https://www.gradmetric.me',
-      'https://logs.gradmetric.me',
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://localhost:3002',
-      /\.gradmetric\.me$/,
-    ],
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      const allowed = [
+        'https://gradmetric.me',
+        'https://www.gradmetric.me',
+        'https://logs.gradmetric.me',
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'http://localhost:3002',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:3001',
+        'http://127.0.0.1:3002',
+      ];
+      if (
+        allowed.includes(origin) ||
+        origin.endsWith('.gradmetric.me') ||
+        origin.startsWith('http://localhost:') ||
+        origin.startsWith('http://127.0.0.1:')
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'X-Origin-Secret'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Accept',
+      'X-Origin-Secret',
+      'x-user-email',
+      'x-user-name',
+      'x-journey-id',
+      'x-reference-id',
+      'x-device-id',
+      'x-real-ip',
+    ],
+    exposedHeaders: ['x-journey-id', 'x-reference-id'],
   });
 
   const configService = app.get(AppConfigService);

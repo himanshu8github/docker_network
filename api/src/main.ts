@@ -22,11 +22,20 @@ async function bootstrap() {
     }),
   );
 
-  // Enable CORS for Next.js frontend (local dev & production custom domains)
+  // Enable CORS for frontend clients (local dev & production custom domains)
   app.enableCors({
-    origin: true, // Allow all origins in dev, or specific domain in production
+    origin: [
+      'https://gradmetric.me',
+      'https://www.gradmetric.me',
+      'https://logs.gradmetric.me',
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:3002',
+      /\.gradmetric\.me$/,
+    ],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'X-Origin-Secret'],
   });
 
   const configService = app.get(AppConfigService);

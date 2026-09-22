@@ -3,12 +3,16 @@ dotenv.config();
 dotenv.config({ path: 'example.env' });
 
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { AppConfigService } from './config/config.service';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Trust the first proxy hop (Nginx reverse proxy) so req.ip reflects real visitor IP
+  app.set('trust proxy', 1);
 
   // Validate incoming request payloads according to DTOs
   app.useGlobalPipes(

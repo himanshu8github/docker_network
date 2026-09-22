@@ -378,9 +378,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             <div className="dark-panel-box">
               <div className="dark-panel-header">
                 <div>
-                  <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Real-Time Ingress Request Stream</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '16px' }}>⚡</span>
+                    <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Real-Time Ingress Request Stream</h3>
+                  </div>
                   <p style={{ fontSize: '12px', color: 'var(--dark-text-dim)', marginTop: '2px' }}>
-                    Live feed of HTTP requests saved persistently in MySQL (Total: {streamTotal} requests tracked across restarts)
+                    Telemetry Stream: <code style={{ color: '#38bdf8' }}>live-ingress-stream</code> • Group: <code style={{ color: '#a78bfa' }}>/gradmetric/production/ingress</code> • ({streamTotal} requests tracked in MySQL)
                   </p>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
@@ -397,15 +400,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       <th>ENDPOINT / ROUTE</th>
                       <th>STATUS</th>
                       <th>LATENCY</th>
-                      <th>CLOUDFLARE RAY</th>
-                      <th>CLIENT IP</th>
+                      <th>JOURNEY ID</th>
+                      <th>REFERENCE ID</th>
+                      <th>REAL IP & GEO</th>
+                      <th>DEVICE / UA</th>
                       <th>TIME</th>
                     </tr>
                   </thead>
                   <tbody>
                     {streamItems.length === 0 ? (
                       <tr>
-                        <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--dark-text-dim)' }}>
+                        <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--dark-text-dim)' }}>
                           No incoming requests recorded yet. Use the public blog to generate real traffic!
                         </td>
                       </tr>
@@ -422,9 +427,47 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             </span>
                           </td>
                           <td style={{ color: '#38bdf8' }}>{log.durationMs} ms</td>
-                          <td style={{ color: '#a78bfa' }}>{log.cfRay}</td>
-                          <td style={{ color: '#94a3b8' }}>{log.clientIp}</td>
-                          <td style={{ color: '#64748b' }}>
+                          <td>
+                            <span
+                              className="mono"
+                              style={{
+                                fontSize: '11px',
+                                color: '#38bdf8',
+                                backgroundColor: '#1e293b',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                              }}
+                            >
+                              {log.journeyId ? log.journeyId.slice(0, 14) : '--'}
+                            </span>
+                          </td>
+                          <td>
+                            <span
+                              className="mono"
+                              style={{
+                                fontSize: '11px',
+                                color: '#a78bfa',
+                                backgroundColor: '#1e293b',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                              }}
+                            >
+                              {log.referenceId ? log.referenceId.slice(0, 16) : (log.cfRay ? log.cfRay.slice(0, 16) : '--')}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ fontSize: '12px', color: '#cbd5e1' }}>
+                              <span>{log.realIp || log.clientIp || log.userIp || '127.0.0.1'}</span>
+                              <span style={{ marginLeft: '6px', fontSize: '11px', color: '#f59e0b', fontWeight: 600 }}>
+                                [{log.userLocation || log.country || 'LOCAL'}]
+                              </span>
+                            </div>
+                          </td>
+                          <td style={{ fontSize: '11px', color: '#94a3b8', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={log.userAgent}>
+                            {log.userDeviceId && log.userDeviceId !== '--' ? `📱 ${log.userDeviceId} • ` : ''}
+                            {log.userAgent || 'Unknown'}
+                          </td>
+                          <td style={{ color: '#64748b', fontSize: '11px' }}>
                             {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                           </td>
                         </tr>

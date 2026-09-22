@@ -1261,42 +1261,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   </div>
                 )}
               </div>
-
-              {/* Chaos Testing & Self-Healing Terminal Reference */}
-              <div className="dark-panel-box" style={{ padding: '20px 24px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                  <span style={{ fontSize: '16px' }}>⚡</span>
-                  <h4 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--dark-text-main)' }}>
-                    EC2 Chaos Testing & Auto-Healing Verification
-                  </h4>
-                </div>
-                <p style={{ fontSize: '13px', color: 'var(--dark-text-muted)', marginBottom: '14px' }}>
-                  All services use <code style={{ color: '#38bdf8' }}>restart: unless-stopped</code> and Docker engine health checks. Run these commands via SSH on your EC2 instance to test failure and observe automatic self-healing:
-                </p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '12px' }}>
-                  <div style={{ backgroundColor: '#0f172a', padding: '12px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-                    <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px', fontWeight: 600 }}>1. SIMULATE BACKEND CRASH</div>
-                    <code className="mono" style={{ fontSize: '12px', color: '#f43f5e' }}>docker kill nestjs-app</code>
-                    <p style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
-                      Status turns RED, Docker daemon immediately restarts container within 2s, and status turns GREEN.
-                    </p>
-                  </div>
-                  <div style={{ backgroundColor: '#0f172a', padding: '12px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-                    <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px', fontWeight: 600 }}>2. SIMULATE DATABASE DOWNTIME</div>
-                    <code className="mono" style={{ fontSize: '12px', color: '#f59e0b' }}>docker stop mysql && sleep 5 && docker start mysql</code>
-                    <p style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
-                      Database card reports Connection Refused, then auto-reconnects to MySQL volume without data loss.
-                    </p>
-                  </div>
-                  <div style={{ backgroundColor: '#0f172a', padding: '12px', borderRadius: '8px', border: '1px solid #1e293b' }}>
-                    <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px', fontWeight: 600 }}>3. LIVE TERMINAL MONITORING (CLI)</div>
-                    <code className="mono" style={{ fontSize: '12px', color: '#34d399' }}>docker stats</code>
-                    <p style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
-                      Streams real-time CPU %, RAM %, and Network I/O for all 5 containers simultaneously in terminal.
-                    </p>
-                  </div>
-                </div>
-              </div>
             </div>
           );
         })()}

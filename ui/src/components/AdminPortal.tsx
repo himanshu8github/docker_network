@@ -239,7 +239,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           <div className="modal-card-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ fontSize: '20px' }}>🛡️</span>
-              <h3 style={{ fontSize: '16px', fontWeight: 700 }}>GradMetric Admin Gate</h3>
+              <h3 style={{ fontSize: '16px', fontWeight: 700 }}>CloudOps.Gradmetric Admin Gate</h3>
             </div>
             {onBackToBlog && (
               <button
@@ -397,7 +397,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         <div className="admin-brand">
           <div className="admin-badge-icon">⚡</div>
           <div>
-            <h2>GradMetric <span>CloudOps</span></h2>
+            <h2>CloudOps <span>.Gradmetric</span></h2>
             <p style={{ fontSize: '11px', color: 'var(--dark-text-dim)', letterSpacing: '0.05em' }}>
               logs.gradmetric.me • OBSERVABILITY & TELEMETRY CONSOLE
             </p>
@@ -538,7 +538,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     <span style={{ fontSize: '20px' }}>⚡</span>
                     <div>
                       <h3 style={{ fontSize: '16px', fontWeight: 700, margin: 0, color: '#f8fafc' }}>
-                        GradMetric CloudOps — Real-Time Ingress Stream
+                        CloudOps.Gradmetric — Real-Time Ingress Stream
                       </h3>
                       <span style={{ fontSize: '12px', color: 'var(--dark-text-dim)' }}>
                         Live Request Observability & Journey Trace Engine • ({streamTotal} requests tracked in MySQL)
@@ -568,7 +568,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span style={{ color: '#94a3b8', fontWeight: 600 }}>Application:</span>
                     <span style={{ color: '#f8fafc', fontWeight: 700, backgroundColor: '#1e293b', padding: '2px 8px', borderRadius: '4px' }}>
-                      GradMetric CloudOps
+                      CloudOps.Gradmetric
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

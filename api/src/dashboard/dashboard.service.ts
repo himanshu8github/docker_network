@@ -424,7 +424,7 @@ export class DashboardService {
       counters: this.telemetryService.counters,
       liveStream: await this.telemetryService.getRecentLogs(limit, page),
       telemetryInfo: {
-        appName: 'GradMetric CloudOps',
+        appName: 'CloudOps.Gradmetric',
         logGroupName: '/gradmetric-cloudops/production/ingress',
         logStreamName: 'live-ingress-stream',
       },

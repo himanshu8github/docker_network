@@ -99,7 +99,7 @@ export const SetUsernameModal: React.FC<SetUsernameModalProps> = ({
             Choose Your Handle
           </h2>
           <p style={{ fontSize: '13px', color: '#94a3b8', marginTop: '6px' }}>
-            Welcome to <span style={{ color: '#38bdf8', fontWeight: 600 }}>GradMetric CloudOps</span> ({currentEmail}). Claim your unique author handle to publish posts.
+            Welcome to <span style={{ color: '#38bdf8', fontWeight: 600 }}>CloudOps.Gradmetric</span> ({currentEmail}). Claim your unique author handle to publish posts.
           </p>
         </div>
 

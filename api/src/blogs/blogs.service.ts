@@ -18,11 +18,11 @@ export class BlogsService {
   ) {}
 
   // Create Blog (Authenticated User or Admin)
-  async create(createBlogDto: CreateBlogDto, user: TokenPayload): Promise<Blog> {
+  async create(createBlogDto: CreateBlogDto, user: any): Promise<Blog> {
     const blog = this.blogRepository.create({
       title: createBlogDto.title.trim(),
       content: createBlogDto.content.trim(),
-      category: createBlogDto.category.trim() || 'DevOps',
+      category: createBlogDto.category?.trim() || 'DevOps',
       authorId: user.sub,
       authorUsername: user.username,
     });
@@ -83,17 +83,32 @@ export class BlogsService {
   }
 
   // Update Blog (Author or Admin Only)
-  async update(id: number, updateBlogDto: UpdateBlogDto, user: TokenPayload): Promise<Blog> {
+  async update(id: number, updateBlogDto: UpdateBlogDto, user: any): Promise<Blog> {
     const blog = await this.findOne(id);
 
     if (blog.authorId !== user.sub && user.role !== 'admin') {
       throw new ForbiddenException('You can only update your own blog posts');
     }
 
-    if (updateBlogDto.title !== undefined) blog.title = updateBlogDto.title.trim();
-    if (updateBlogDto.content !== undefined) blog.content = updateBlogDto.content.trim();
+    const newTitle = updateBlogDto.title !== undefined ? updateBlogDto.title.trim() : blog.title;
+    const newContent = updateBlogDto.content !== undefined ? updateBlogDto.content.trim() : blog.content;
+
+    blog.title = newTitle;
+    blog.content = newContent;
     if (updateBlogDto.category !== undefined) blog.category = updateBlogDto.category.trim();
 
     return await this.blogRepository.save(blog);
+  }
+
+  // Delete Blog (Author or Admin Only)
+  async delete(id: number, user: any): Promise<{ success: boolean; message: string }> {
+    const blog = await this.findOne(id);
+
+    if (blog.authorId !== user.sub && user.role !== 'admin') {
+      throw new ForbiddenException('You can only delete your own blog posts');
+    }
+
+    await this.blogRepository.remove(blog);
+    return { success: true, message: `Blog #${id} deleted successfully` };
   }
 }

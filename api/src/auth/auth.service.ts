@@ -3,6 +3,7 @@ import {
   ConflictException,
   UnauthorizedException,
   BadRequestException,
+  NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -204,6 +205,45 @@ export class AuthService implements OnModuleInit {
     return {
       accessToken: newAccessToken,
       expiresIn: accessLifespan,
+    };
+  }
+
+  // Set Custom Alphanumeric Username (4 to 10 characters)
+  async setUsername(userPayload: any, rawUsername: string) {
+    const username = (rawUsername || '').trim();
+
+    // Enforce strictly alphanumeric, min 4 and max 10 chars
+    if (!/^[a-zA-Z0-9]{4,10}$/.test(username)) {
+      throw new BadRequestException(
+        'Username must be between 4 and 10 characters and contain only letters and numbers (no spaces or special characters)',
+      );
+    }
+
+    // Check if taken by another user
+    const existing = await this.userRepository.findOne({ where: { username } });
+    if (existing && existing.id !== userPayload.sub && existing.clerkId !== userPayload.clerkId) {
+      throw new ConflictException('Username is already taken. Please choose another.');
+    }
+
+    // Find user record by sub or clerkId
+    let user = await this.userRepository.findOne({
+      where: [{ id: userPayload.sub }, { clerkId: userPayload.clerkId }],
+    });
+
+    if (!user) {
+      throw new NotFoundException('User profile not found');
+    }
+
+    user.username = username;
+    const saved = await this.userRepository.save(user);
+
+    // Update Bloom Filter
+    this.bloomFilterService.add(username);
+
+    return {
+      success: true,
+      username: saved.username,
+      message: 'Username successfully updated',
     };
   }
 }

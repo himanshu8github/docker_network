@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto, RefreshDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { ClerkAuthGuard } from './guards/clerk-auth.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -28,8 +29,14 @@ export class AuthController {
     return this.authService.checkUsername(username);
   }
 
+  @Post('set-username')
+  @UseGuards(ClerkAuthGuard)
+  setUsername(@Body('username') username: string, @Req() req: any) {
+    return this.authService.setUsername(req.user, username);
+  }
+
   @Get('me')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(ClerkAuthGuard)
   getMe(@Req() req: any) {
     return { user: req.user };
   }

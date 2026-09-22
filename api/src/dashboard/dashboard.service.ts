@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as os from 'os';
 import * as fs from 'fs';
+import * as http from 'http';
 import { User } from '../users/user.entity';
 import { Blog } from '../blogs/blog.entity';
 import { PageVisit } from '../analytics/page-visit.entity';
@@ -123,6 +124,183 @@ export class DashboardService {
     };
   }
 
+  private formatBytes(bytes: number): string {
+    if (!bytes || bytes <= 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
+  // Direct HTTP-over-Unix-socket query to Docker daemon (/var/run/docker.sock)
+  private queryDockerSocket<T = any>(path: string): Promise<T | null> {
+    return new Promise((resolve) => {
+      const socketPath = '/var/run/docker.sock';
+      if (!fs.existsSync(socketPath)) {
+        return resolve(null);
+      }
+      try {
+        const req = http.request(
+          {
+            socketPath,
+            path,
+            method: 'GET',
+            timeout: 3500,
+            headers: {
+              Host: 'docker.sock',
+            },
+          },
+          (res) => {
+            let data = '';
+            res.on('data', (chunk) => (data += chunk));
+            res.on('end', () => {
+              try {
+                resolve(JSON.parse(data));
+              } catch {
+                resolve(null);
+              }
+            });
+          },
+        );
+        req.on('timeout', () => {
+          req.destroy();
+          resolve(null);
+        });
+        req.on('error', () => {
+          resolve(null);
+        });
+        req.end();
+      } catch {
+        resolve(null);
+      }
+    });
+  }
+
+  // 100% Real Live Metrics for Containers and Volumes from Docker Engine
+  private async getRealContainerMetrics(hostTotalMemMb: number) {
+    const socketPath = '/var/run/docker.sock';
+    if (!fs.existsSync(socketPath)) {
+      return {
+        dockerEngineActive: false,
+        source: 'Docker Unix Socket (/var/run/docker.sock) not mounted',
+        totalContainers: 0,
+        containers: [],
+        volumes: [],
+      };
+    }
+
+    try {
+      const [containersList, systemDf] = await Promise.all([
+        this.queryDockerSocket<any[]>('/containers/json?all=true&size=true'),
+        this.queryDockerSocket<any>('/system/df'),
+      ]);
+
+      if (!Array.isArray(containersList)) {
+        return {
+          dockerEngineActive: false,
+          source: 'Docker Engine daemon did not return container list',
+          totalContainers: 0,
+          containers: [],
+          volumes: [],
+        };
+      }
+
+      // Query live stats for running containers in parallel
+      const statsList = await Promise.all(
+        containersList.map(async (c) => {
+          if (c.State === 'running') {
+            const stats = await this.queryDockerSocket<any>(`/containers/${c.Id}/stats?stream=false`);
+            return { id: c.Id, stats };
+          }
+          return { id: c.Id, stats: null };
+        }),
+      );
+
+      const statsMap = new Map<string, any>();
+      for (const s of statsList) {
+        if (s.stats) statsMap.set(s.id, s.stats);
+      }
+
+      // Real Volume Storage from Docker engine
+      const volumes = (systemDf?.Volumes || []).map((v: any) => {
+        const sizeBytes = v.UsageData?.Size ?? 0;
+        return {
+          name: v.Name,
+          driver: v.Driver,
+          sizeBytes,
+          sizeFormatted: this.formatBytes(sizeBytes),
+          refCount: v.UsageData?.RefCount ?? 0,
+        };
+      });
+
+      // Real Containers metrics from Docker engine
+      const containers = containersList.map((c) => {
+        const rawName = c.Names && c.Names[0] ? c.Names[0].replace(/^\//, '') : c.Id.slice(0, 12);
+        const stats = statsMap.get(c.Id);
+
+        let memUsageBytes = 0;
+        let memLimitBytes = 0;
+        let cpuPercent = 0;
+
+        if (stats && stats.memory_stats) {
+          const usage = stats.memory_stats.usage || 0;
+          const cache = stats.memory_stats.stats?.cache || stats.memory_stats.stats?.inactive_file || 0;
+          memUsageBytes = Math.max(0, usage - cache);
+          memLimitBytes = stats.memory_stats.limit || (hostTotalMemMb * 1024 * 1024);
+        }
+
+        if (stats && stats.cpu_stats && stats.precpu_stats) {
+          const cpuDelta = (stats.cpu_stats.cpu_usage?.total_usage || 0) - (stats.precpu_stats.cpu_usage?.total_usage || 0);
+          const systemDelta = (stats.cpu_stats.system_cpu_usage || 0) - (stats.precpu_stats.system_cpu_usage || 0);
+          const onlineCpus = stats.cpu_stats.online_cpus || (stats.cpu_stats.cpu_usage?.percpu_usage?.length || 1);
+          if (systemDelta > 0 && cpuDelta > 0) {
+            cpuPercent = Number(((cpuDelta / systemDelta) * onlineCpus * 100).toFixed(1));
+          }
+        }
+
+        const sizeRwBytes = c.SizeRw ?? 0;
+        const sizeRootFsBytes = c.SizeRootFs ?? 0;
+        const memPercent = memLimitBytes > 0 ? Number(((memUsageBytes / memLimitBytes) * 100).toFixed(1)) : 0;
+
+        return {
+          id: c.Id.slice(0, 12),
+          name: rawName,
+          image: c.Image,
+          state: c.State,
+          status: c.Status,
+          // Real Space metrics
+          sizeRwBytes,
+          sizeRwFormatted: this.formatBytes(sizeRwBytes),
+          sizeRootFsBytes,
+          sizeRootFsFormatted: this.formatBytes(sizeRootFsBytes),
+          // Real Memory metrics
+          memUsageBytes,
+          memUsageFormatted: this.formatBytes(memUsageBytes),
+          memLimitBytes,
+          memPercent,
+          // Real CPU metrics
+          cpuPercent,
+        };
+      });
+
+      return {
+        dockerEngineActive: true,
+        source: 'Docker Engine API (/var/run/docker.sock)',
+        totalContainers: containers.length,
+        containers,
+        volumes,
+      };
+    } catch (err: any) {
+      return {
+        dockerEngineActive: false,
+        source: `Docker Engine query error: ${err.message}`,
+        totalContainers: 0,
+        containers: [],
+        volumes: [],
+      };
+    }
+  }
+
   // Multi-Service Health & Topology Matrix
   async getSystemHealth() {
     const host = this.getHostMetrics();
@@ -144,10 +322,11 @@ export class DashboardService {
     const procUptimeSec = Math.floor(process.uptime());
 
     // 3. Service Probes (Docker container names with localhost fallbacks)
-    const [userUiProbe, adminUiProbe, nginxProbe] = await Promise.all([
+    const [userUiProbe, adminUiProbe, nginxProbe, dockerMetrics] = await Promise.all([
       this.probeService('http://ui-user:3001', 'http://localhost:3001'),
       this.probeService('http://ui-admin:3002/admin.html', 'http://localhost:3002/admin.html'),
       this.probeService('http://nginx-proxy/nginx-health', 'http://localhost/nginx-health'),
+      this.getRealContainerMetrics(host.totalMemMb),
     ]);
 
     return {
@@ -199,6 +378,7 @@ export class DashboardService {
           details: nginxProbe.status === 'healthy' ? 'Virtual Hosts & Upstreams Active' : 'Awaiting Docker Network Ingress',
         },
       ],
+      dockerMetrics,
       processUptimeFormatted: `${Math.floor(procUptimeSec / 3600)}h ${Math.floor((procUptimeSec % 3600) / 60)}m ${procUptimeSec % 60}s`,
     };
   }

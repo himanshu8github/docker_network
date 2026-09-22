@@ -27,6 +27,7 @@ async function bootstrap() {
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
       const allowed = [
+        'https://cloudops.gradmetric.me',
         'https://gradmetric.me',
         'https://www.gradmetric.me',
         'https://logs.gradmetric.me',

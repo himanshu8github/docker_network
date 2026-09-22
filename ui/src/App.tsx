@@ -49,7 +49,11 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  const apiUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3000';
+  const apiUrl =
+    (import.meta as any).env?.VITE_API_URL ||
+    (typeof window !== 'undefined' && window.location.hostname.includes('gradmetric.me')
+      ? 'https://api.gradmetric.me'
+      : 'http://localhost:3000');
 
   // Restore saved user token
   useEffect(() => {

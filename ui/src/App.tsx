@@ -612,6 +612,16 @@ export default function App() {
         addToast={addToast}
         editBlog={editingBlog}
       />
+
+      {/* Set Username Modal (4-10 alphanumeric characters) */}
+      <SetUsernameModal
+        isOpen={isSetUsernameOpen}
+        apiUrl={apiUrl}
+        token={userToken}
+        currentEmail={clerkUser?.primaryEmailAddress?.emailAddress || ''}
+        onSuccess={handleUsernameSuccess}
+        addToast={addToast}
+      />
     </div>
   );
 }

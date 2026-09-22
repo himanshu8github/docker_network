@@ -26,7 +26,7 @@ Thumbs.db
 *.swp
 *.swo
 
-# Environment variables
+# Environment variables & secrets
 .env
 .env.*
 *.env
@@ -34,6 +34,8 @@ Thumbs.db
 **/.env.*
 *example.env*
 example.env
+origin_secret.conf
+!origin_secret.example.conf
 
 # Learning & Architecture Notes
 configure.md
@@ -41,3 +43,4 @@ cloudflare.md
 cloudfare.md
 plan.md
 steps.md
+

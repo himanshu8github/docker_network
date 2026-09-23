@@ -83,7 +83,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         fetch(`${apiUrl}${endpoint}`, {
           headers: {
             Authorization: `Bearer ${jwt}`,
-            'x-user-email': clerkUser?.primaryEmailAddress?.emailAddress || '',
           },
         });
 

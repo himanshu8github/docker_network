@@ -77,7 +77,6 @@ export default function App() {
             const res = await fetch(`${apiUrl}/auth/me`, {
               headers: {
                 Authorization: `Bearer ${token}`,
-                'x-user-email': clerkUser?.primaryEmailAddress?.emailAddress || '',
               },
             });
             if (res.ok) {
@@ -184,7 +183,6 @@ export default function App() {
           method: 'DELETE',
           headers: {
             Authorization: `Bearer ${t}`,
-            'x-user-email': clerkUser?.primaryEmailAddress?.emailAddress || '',
           },
         });
 

@@ -56,7 +56,6 @@ export const SetUsernameModal: React.FC<SetUsernameModalProps> = ({
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${jwt}`,
-            'x-user-email': currentEmail || '',
           },
           body: JSON.stringify({ username }),
         });

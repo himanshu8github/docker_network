@@ -105,7 +105,6 @@ export const PostBlogModal: React.FC<PostBlogModalProps> = ({
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${jwt}`,
-            'x-user-email': userEmail || '',
             'x-user-name': authorUsername || '',
           },
           body: JSON.stringify({

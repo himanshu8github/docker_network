@@ -14,34 +14,51 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy to EC2 via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          port: 22
-          script_stop: true
-          script: |
+      - name: Deploy to EC2 via Native SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
+          HOST: ${{ secrets.EC2_HOST }}
+          USER: ${{ secrets.EC2_USERNAME }}
+        run: |
+          # 1. Prepare SSH directory
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          # 2. Write key and normalize line endings (strip Windows \r)
+          echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          # 3. Clean and trim HOST and USER
+          TARGET_HOST=$(echo "$HOST" | tr -d '[:space:]')
+          TARGET_USER=$(echo "$USER" | tr -d '[:space:]')
+          if [ -z "$TARGET_USER" ]; then TARGET_USER="ubuntu"; fi
+
+          echo "Connecting to ${TARGET_USER}@${TARGET_HOST}..."
+
+          # 4. Connect with standard SSH and auto-negotiate RSA + modern algorithms
+          ssh -o StrictHostKeyChecking=no \
+              -o HostkeyAlgorithms=+ssh-rsa \
+              -o PubkeyAcceptedKeyTypes=+ssh-rsa,rsa-sha2-256,rsa-sha2-512,ssh-ed25519 \
+              -i ~/.ssh/deploy_key \
+              "${TARGET_USER}@${TARGET_HOST}" << 'EOF'
+            set -e
             echo "🚀 Deployment started on EC2..."
-            
-            # Navigate to project directory on EC2 (or clone if first time)
+
             if [ -d "$HOME/docker_network" ]; then
-              cd $HOME/docker_network
+              cd "$HOME/docker_network"
               echo "Pulling latest changes from main branch..."
               git pull origin main
             else
               echo "Cloning repository..."
-              git clone https://github.com/himanshu8github/docker_network.git $HOME/docker_network
-              cd $HOME/docker_network
+              git clone https://github.com/himanshu8github/docker_network.git "$HOME/docker_network"
+              cd "$HOME/docker_network"
             fi
 
-            # Rebuild and restart containers in background
             echo "Rebuilding and restarting Docker containers..."
             docker compose up -d --build
 
-            # Clean up old unused dangling Docker images to save disk space
             echo "Pruning dangling Docker images..."
             docker image prune -f
 
             echo "✅ Deployment completed successfully!"
+          EOF

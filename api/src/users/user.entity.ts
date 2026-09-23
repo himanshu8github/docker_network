@@ -30,6 +30,9 @@ export class User {
   @Column({ type: 'int', default: 2 })
   roleId: number;
 
+  @Column({ type: 'boolean', default: false })
+  isCustomUsername: boolean;
+
   @ManyToOne(() => Role, (role) => role.users, { eager: true })
   @JoinColumn({ name: 'roleId' })
   role: Role;

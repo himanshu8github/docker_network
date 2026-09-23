@@ -22,11 +22,18 @@ export class CryptoService {
   }
 
   // Verify Password
-  verifyPassword(password: string, storedHash: string): boolean {
+  verifyPassword(password: string, storedHash?: string): boolean {
+    if (!password || !storedHash || typeof storedHash !== 'string' || !storedHash.includes(':')) {
+      return false;
+    }
     const [salt, key] = storedHash.split(':');
     if (!salt || !key) return false;
-    const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-    return crypto.timingSafeEqual(Buffer.from(key, 'hex'), Buffer.from(hash, 'hex'));
+    try {
+      const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+      return crypto.timingSafeEqual(Buffer.from(key, 'hex'), Buffer.from(hash, 'hex'));
+    } catch {
+      return false;
+    }
   }
 
   // 32-byte AES-256 encryption key derived deterministically from secret

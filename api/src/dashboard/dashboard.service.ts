@@ -19,7 +19,7 @@ export class DashboardService {
     @InjectRepository(PageVisit)
     private readonly pageVisitRepository: Repository<PageVisit>,
     private readonly telemetryService: TelemetryService,
-  ) {}
+  ) { }
 
   // Sample internal HTTP service probe with short timeout
   private async probeService(url: string, fallbackUrl?: string) {

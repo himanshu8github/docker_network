@@ -92,6 +92,7 @@ export class AuthService implements OnModuleInit {
       email: registerDto.email,
       username: registerDto.username,
       passwordHash,
+      isCustomUsername: true,
       roleId: userRole.id,
       role: userRole,
     });
@@ -135,8 +136,8 @@ export class AuthService implements OnModuleInit {
   // Login User
   async login(loginDto: LoginDto) {
     const user = await this.userRepository.findOne({ where: { email: loginDto.email } });
-    if (!user) {
-      throw new UnauthorizedException('Invalid email or password');
+    if (!user || !user.passwordHash) {
+      throw new UnauthorizedException('Invalid email or password. Please use Google / Clerk login.');
     }
 
     const isMatch = this.cryptoService.verifyPassword(loginDto.password, user.passwordHash);
@@ -253,12 +254,14 @@ export class AuthService implements OnModuleInit {
         clerkId: userPayload.clerkId,
         email: userPayload.email || `${userPayload.clerkId || Date.now()}@clerk.user`,
         username,
+        isCustomUsername: true,
         roleId: userRole ? userRole.id : 2,
         role: userRole || undefined,
       });
       user = await this.userRepository.save(newUser);
     } else {
       user.username = username;
+      user.isCustomUsername = true;
       user = await this.userRepository.save(user);
     }
 

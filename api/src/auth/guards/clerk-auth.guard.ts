@@ -55,8 +55,8 @@ export class ClerkAuthGuard implements CanActivate {
         if (payload && payload.sub) {
           const clerkId = payload.sub;
 
-          // Extract user email from request header or Clerk API
-          let userEmail = ((request.headers['x-user-email'] as string) || payload.email || '').trim().toLowerCase();
+          // Extract user email strictly from verified Clerk JWT claims or the official Clerk API (NEVER trust unverified client headers)
+          let userEmail = (payload.email || '').trim().toLowerCase();
 
           if (!userEmail && this.clerkClient) {
             try {
@@ -89,9 +89,14 @@ export class ClerkAuthGuard implements CanActivate {
             if (userByClerk && userByClerk.id !== dbUser.id) {
               this.logger.log(`Merging duplicate user ${userByClerk.id} into real account ${dbUser.id} (${userEmail})`);
               try {
+                // Reassign existing blogs first to protect against cascade deletion
+                await this.userRepository.query(
+                  'UPDATE blogs SET authorId = ?, authorUsername = ? WHERE authorId = ?',
+                  [dbUser.id, dbUser.username, userByClerk.id],
+                );
                 await this.userRepository.delete(userByClerk.id);
               } catch (delErr: any) {
-                this.logger.warn(`Could not delete stub user: ${delErr.message}`);
+                this.logger.warn(`Could not merge/delete stub user: ${delErr.message}`);
               }
             }
             if (dbUser.clerkId !== clerkId) {
@@ -108,13 +113,14 @@ export class ClerkAuthGuard implements CanActivate {
             // Neither email nor clerkId found in DB -> Provision new user
             const finalEmail = userEmail || `${clerkId}@clerk.user`;
             const cleanId = clerkId.replace(/[^a-zA-Z0-9]/g, '');
-            let username = `u${cleanId.slice(-6)}`.slice(0, 10);
+            let username = `u_${cleanId.slice(-6)}`.slice(0, 10);
 
             let role = await this.roleRepository.findOne({ where: { name: 'user' } });
             let newUser = this.userRepository.create({
               clerkId,
               email: finalEmail,
               username,
+              isCustomUsername: false,
               roleId: role ? role.id : 2,
               role: role || undefined,
             });
@@ -122,7 +128,7 @@ export class ClerkAuthGuard implements CanActivate {
               dbUser = await this.userRepository.save(newUser);
             } catch (err: any) {
               this.logger.warn(`Initial user creation collision: ${err.message}. Retrying with unique handle.`);
-              const fallbackHandle = `u${Date.now().toString(36).slice(-5)}${Math.random().toString(36).slice(2, 5)}`.slice(0, 10);
+              const fallbackHandle = `u_${Date.now().toString(36).slice(-4)}`.slice(0, 10);
               newUser.username = fallbackHandle;
               try {
                 dbUser = await this.userRepository.save(newUser);
@@ -155,7 +161,10 @@ export class ClerkAuthGuard implements CanActivate {
             payload.role === 'admin';
 
           const roleName = isAdmin ? 'admin' : 'user';
-          const isPendingHandle = !dbUser?.username || dbUser.username.startsWith('u') || dbUser.username.length < 4;
+
+          // A handle is pending only if the user hasn't claimed a custom handle yet (and is not an admin)
+          // No prefix assumptions: handles like avi90, raj08, user123 are completely valid
+          const isPendingHandle = !isAdmin && (dbUser ? !dbUser.isCustomUsername : true);
 
           request.user = {
             id: dbUser ? dbUser.id : 0,

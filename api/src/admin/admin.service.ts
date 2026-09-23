@@ -115,6 +115,10 @@ export class AdminService implements OnModuleInit {
       throw new ForbiddenException('Access denied: User is not an admin');
     }
 
+    if (!user.passwordHash) {
+      throw new UnauthorizedException('Invalid admin credentials. Please use Clerk SSO authentication.');
+    }
+
     const isMatch = this.cryptoService.verifyPassword(dto.password, user.passwordHash);
     if (!isMatch) {
       throw new UnauthorizedException('Invalid admin credentials');

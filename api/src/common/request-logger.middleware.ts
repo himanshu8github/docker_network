@@ -48,8 +48,21 @@ export class RequestLoggerMiddleware implements NestMiddleware {
       const durationMs = Date.now() - start;
       const { statusCode } = res;
 
-      // Record to live telemetry (skip telemetry polling itself to avoid noise)
-      if (!originalUrl.startsWith('/dashboard/metrics') && !originalUrl.startsWith('/dashboard/stream')) {
+      // Record to live telemetry (filter out internal health checks, polling endpoints, and static noise)
+      const cleanPath = (originalUrl || '').split('?')[0].toLowerCase();
+      const isHealthOrNoise =
+        cleanPath === '/health' ||
+        cleanPath === '/api/health' ||
+        cleanPath.endsWith('/health') ||
+        cleanPath.includes('system-health') ||
+        cleanPath.includes('nginx-health') ||
+        cleanPath.startsWith('/dashboard/metrics') ||
+        cleanPath.startsWith('/api/dashboard/metrics') ||
+        cleanPath.startsWith('/dashboard/stream') ||
+        cleanPath.startsWith('/api/dashboard/stream') ||
+        cleanPath === '/favicon.ico';
+
+      if (!isHealthOrNoise) {
         this.telemetryService.recordRequest({
           journeyId,
           referenceId,

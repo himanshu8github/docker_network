@@ -42,9 +42,17 @@ export class TelemetryService implements OnModuleInit {
 
   async onModuleInit() {
     try {
+      // Purge historical health probes and telemetry polling from database
+      await this.requestLogRepository
+        .createQueryBuilder()
+        .delete()
+        .where("url LIKE '%health%' OR url LIKE '%metrics%' OR url LIKE '%stream%' OR url = '/favicon.ico'")
+        .execute();
+
       this.counters.totalRequests = await this.requestLogRepository.count();
       this.counters.getRequests = await this.requestLogRepository.count({ where: { method: 'GET' } });
       this.counters.postRequests = await this.requestLogRepository.count({ where: { method: 'POST' } });
+      this.counters.patchRequests = await this.requestLogRepository.count({ where: { method: 'PATCH' } });
       this.counters.deleteRequests = await this.requestLogRepository.count({ where: { method: 'DELETE' } });
     } catch {
       // Pending table readiness
@@ -92,11 +100,16 @@ export class TelemetryService implements OnModuleInit {
     const skip = (p - 1) * l;
 
     try {
-      const [logs, total] = await this.requestLogRepository.findAndCount({
-        order: { createdAt: 'DESC' },
-        skip,
-        take: l,
-      });
+      const [logs, total] = await this.requestLogRepository
+        .createQueryBuilder('log')
+        .where("log.url NOT LIKE '%health%'")
+        .andWhere("log.url NOT LIKE '%metrics%'")
+        .andWhere("log.url NOT LIKE '%stream%'")
+        .andWhere("log.url != '/favicon.ico'")
+        .orderBy('log.createdAt', 'DESC')
+        .skip(skip)
+        .take(l)
+        .getManyAndCount();
 
       return {
         items: logs.map((log) => ({

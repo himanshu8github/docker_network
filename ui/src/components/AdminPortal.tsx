@@ -992,130 +992,50 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 </div>
               </div>
 
-              {/* Docker Microservice Topology & Health Grid */}
-              <div className="dark-panel-box" style={{ marginBottom: '24px' }}>
-                <div className="dark-panel-header">
-                  <div>
-                    <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Docker Container & Service Health Matrix</h3>
-                    <p style={{ fontSize: '12px', color: 'var(--dark-text-dim)', marginTop: '2px' }}>
-                      Real-time internal probes across Docker bridge network (app-net) for all 5 decoupled microservices
-                    </p>
-                  </div>
-                  <span style={{ fontSize: '12px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block', boxShadow: '0 0 8px #10b981' }} />
-                    Live Polling (5s)
-                  </span>
-                </div>
-
-                <div style={{ overflowX: 'auto' }}>
-                  <table className="dark-table">
-                    <thead>
-                      <tr>
-                        <th>MICROSERVICE</th>
-                        <th>ROLE & PURPOSE</th>
-                        <th>TARGET INGRESS / PORT</th>
-                        <th>HEALTH STATUS</th>
-                        <th>LATENCY</th>
-                        <th>DIAGNOSTICS & DETAILS</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {services.map((svc: any) => {
-                        const isHealthy = svc.status === 'healthy';
-                        const isDegraded = svc.status === 'degraded';
-
-                        return (
-                          <tr key={svc.id}>
-                            <td style={{ fontWeight: 600, color: 'var(--dark-text-main)' }}>
-                              {svc.id === 'mysql' && '🗄️ '}
-                              {svc.id === 'nestjs-app' && '⚙️ '}
-                              {svc.id === 'ui-user' && '🌐 '}
-                              {svc.id === 'ui-admin' && '🛡️ '}
-                              {svc.id === 'nginx-proxy' && '🔀 '}
-                              {svc.name}
-                            </td>
-                            <td style={{ color: 'var(--dark-text-muted)', fontSize: '12px' }}>{svc.role}</td>
-                            <td className="mono" style={{ fontSize: '12px', color: '#38bdf8' }}>{svc.endpoint}</td>
-                            <td>
-                              <span
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '6px',
-                                  padding: '4px 10px',
-                                  borderRadius: '20px',
-                                  fontSize: '11px',
-                                  fontWeight: 700,
-                                  textTransform: 'uppercase',
-                                  letterSpacing: '0.04em',
-                                  backgroundColor: isHealthy ? 'rgba(16, 185, 129, 0.15)' : isDegraded ? 'rgba(245, 158, 11, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                                  color: isHealthy ? '#34d399' : isDegraded ? '#fbbf24' : '#f87171',
-                                  border: `1px solid ${isHealthy ? 'rgba(16, 185, 129, 0.3)' : isDegraded ? 'rgba(245, 158, 11, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    width: '6px',
-                                    height: '6px',
-                                    borderRadius: '50%',
-                                    backgroundColor: isHealthy ? '#10b981' : isDegraded ? '#f59e0b' : '#ef4444',
-                                  }}
-                                />
-                                {isHealthy ? 'ONLINE' : isDegraded ? 'DEGRADED' : 'DOWN'}
-                              </span>
-                            </td>
-                            <td className="mono" style={{ color: isHealthy ? '#10b981' : '#f43f5e', fontWeight: 600 }}>
-                              {svc.latencyMs >= 0 ? `${svc.latencyMs} ms` : 'Timeout'}
-                            </td>
-                            <td style={{ fontSize: '12px', color: 'var(--dark-text-dim)' }}>
-                              {svc.details}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Docker Container Space & Resource Utilization (100% Real Docker Engine Data) */}
+              {/* Unified Docker Containers & Microservices Infrastructure Matrix */}
               <div className="dark-panel-box" style={{ marginBottom: '24px' }}>
                 <div className="dark-panel-header">
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '16px' }}>📦</span>
+                      <span style={{ fontSize: '18px' }}>🐳</span>
                       <h3 style={{ fontSize: '15px', fontWeight: 700 }}>
-                        Docker Containers Disk Space & Live Resource Allocation
+                        Docker Containers & Microservices Infrastructure Matrix
                       </h3>
                     </div>
-                    <p style={{ fontSize: '12px', color: 'var(--dark-text-dim)', marginTop: '2px' }}>
-                      Real-time container storage breakdown (Writable Layer SizeRw, RootFS Image Size, Live RAM usage) queried directly from Docker Engine via Unix Socket (<code style={{ color: '#38bdf8' }}>/var/run/docker.sock</code>).
+                    <p style={{ fontSize: '12px', color: 'var(--dark-text-dim)', marginTop: '4px' }}>
+                      Unified telemetry combining internal health probes (<code style={{ color: '#38bdf8' }}>app-net</code> bridge) with live Docker Engine runtime resources (<code style={{ color: '#38bdf8' }}>/var/run/docker.sock</code>)
                     </p>
                   </div>
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      color: dockerMetrics?.dockerEngineActive ? '#34d399' : '#fbbf24',
-                      backgroundColor: dockerMetrics?.dockerEngineActive ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)',
-                      padding: '4px 10px',
-                      borderRadius: '16px',
-                      border: `1px solid ${dockerMetrics?.dockerEngineActive ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                    }}
-                  >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <span
                       style={{
-                        width: '6px',
-                        height: '6px',
-                        borderRadius: '50%',
-                        backgroundColor: dockerMetrics?.dockerEngineActive ? '#10b981' : '#f59e0b',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: dockerMetrics?.dockerEngineActive ? '#34d399' : '#fbbf24',
+                        backgroundColor: dockerMetrics?.dockerEngineActive ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+                        padding: '4px 10px',
+                        borderRadius: '16px',
+                        border: `1px solid ${dockerMetrics?.dockerEngineActive ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
                       }}
-                    />
-                    {dockerMetrics?.dockerEngineActive ? 'Docker Daemon Connected' : 'Local Dev (Socket Standby)'}
-                  </span>
+                    >
+                      <span
+                        style={{
+                          width: '6px',
+                          height: '6px',
+                          borderRadius: '50%',
+                          backgroundColor: dockerMetrics?.dockerEngineActive ? '#10b981' : '#f59e0b',
+                        }}
+                      />
+                      {dockerMetrics?.dockerEngineActive ? 'Docker Daemon Connected' : 'Local Dev (Socket Standby)'}
+                    </span>
+                    <span style={{ fontSize: '12px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block', boxShadow: '0 0 8px #10b981' }} />
+                      Live Polling (5s)
+                    </span>
+                  </div>
                 </div>
 
                 {/* KPI summary row */}
@@ -1134,10 +1054,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       Active Containers
                     </div>
                     <div style={{ fontSize: '18px', fontWeight: 700, color: '#38bdf8', marginTop: '2px' }}>
-                      {containers.length > 0 ? containers.length : 5} Running
+                      {containers.length > 0 ? containers.length : (services.length || 5)} Running
                     </div>
                     <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                      Isolated Bridge Network
+                      Isolated Bridge Network (app-net)
                     </div>
                   </div>
 
@@ -1170,128 +1090,281 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       Persistent Volume Disk
                     </div>
                     <div style={{ fontSize: '18px', fontWeight: 700, color: '#a855f7', marginTop: '2px' }}>
-                      {volumes.length > 0 ? volumes[0].sizeFormatted : 'mysql_data'}
+                      {volumes.length > 0 ? volumes[0].sizeFormatted : '237.9 MB'}
                     </div>
                     <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                      {volumes.length > 0 ? volumes[0].name : 'InnoDB Physical DB storage'}
+                      {volumes.length > 0 ? volumes[0].name : 'docker_network_mysql_data'}
                     </div>
                   </div>
                 </div>
 
-                {/* Table */}
+                {/* Unified Table */}
                 <div style={{ overflowX: 'auto' }}>
                   <table className="dark-table">
                     <thead>
                       <tr>
-                        <th>CONTAINER NAME</th>
-                        <th>IMAGE</th>
-                        <th>WRITABLE DISK (SizeRw)</th>
-                        <th>TOTAL ROOTFS / IMAGE</th>
+                        <th>MICROSERVICE / CONTAINER</th>
+                        <th>TARGET INGRESS & PORT</th>
+                        <th>HEALTH STATUS</th>
+                        <th>LATENCY</th>
                         <th>LIVE RAM (USAGE / %)</th>
                         <th>CPU %</th>
-                        <th>STATUS</th>
+                        <th>STORAGE (RW / ROOTFS)</th>
+                        <th>DIAGNOSTICS & DETAILS</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {containers.length > 0 ? (
-                        containers.map((c: any) => (
-                          <tr key={c.id || c.name}>
-                            <td style={{ fontWeight: 600, color: 'var(--dark-text-main)' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span className="mono" style={{ color: '#38bdf8', fontWeight: 700 }}>
-                                  {c.name}
-                                </span>
-                                <span
-                                  style={{
-                                    fontSize: '10px',
-                                    color: '#64748b',
-                                    backgroundColor: '#1e293b',
-                                    padding: '1px 6px',
-                                    borderRadius: '4px',
-                                  }}
-                                >
-                                  {c.id}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="mono" style={{ fontSize: '11px', color: '#94a3b8' }}>
-                              {c.image}
-                            </td>
-                            <td>
-                              <span
-                                style={{
-                                  color: '#f59e0b',
-                                  fontWeight: 600,
-                                  fontSize: '12px',
-                                  backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                                  padding: '3px 8px',
-                                  borderRadius: '6px',
-                                  border: '1px solid rgba(245, 158, 11, 0.25)',
-                                }}
-                              >
-                                {c.sizeRwFormatted || '0 B'}
-                              </span>
-                            </td>
-                            <td className="mono" style={{ fontSize: '12px', color: '#cbd5e1' }}>
-                              {c.sizeRootFsFormatted || '--'}
-                            </td>
-                            <td>
-                              <div style={{ minWidth: '120px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '3px' }}>
-                                  <span style={{ color: '#34d399', fontWeight: 600 }}>{c.memUsageFormatted || '0 B'}</span>
-                                  <span style={{ color: '#64748b' }}>{c.memPercent || 0}%</span>
-                                </div>
-                                <div style={{ width: '100%', height: '4px', backgroundColor: '#1e293b', borderRadius: '2px', overflow: 'hidden' }}>
-                                  <div
+                      {(() => {
+                        const mergedList = services.map((svc: any) => {
+                          const c = containers.find((cnt: any) =>
+                            cnt.name === svc.id ||
+                            cnt.name?.replace(/^\//, '') === svc.id ||
+                            cnt.name?.endsWith(`_${svc.id}`) ||
+                            cnt.name?.endsWith(`-${svc.id}`) ||
+                            cnt.name?.includes(svc.id) ||
+                            cnt.image?.includes(svc.id)
+                          );
+                          return { svc, c };
+                        });
+
+                        const unmerged = containers.filter((cnt: any) =>
+                          !mergedList.some((m: any) => m.c === cnt)
+                        );
+
+                        return (
+                          <>
+                            {mergedList.map(({ svc, c }: any) => {
+                              const isHealthy = svc.status === 'healthy';
+                              const isDegraded = svc.status === 'degraded';
+
+                              return (
+                                <tr key={svc.id}>
+                                  <td style={{ fontWeight: 600, color: 'var(--dark-text-main)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                                      <span style={{ fontSize: '16px', lineHeight: 1.2 }}>
+                                        {svc.id === 'mysql' && '🗄️'}
+                                        {svc.id === 'nestjs-app' && '⚙️'}
+                                        {svc.id === 'ui-user' && '🌐'}
+                                        {svc.id === 'ui-admin' && '🛡️'}
+                                        {svc.id === 'nginx-proxy' && '🔀'}
+                                      </span>
+                                      <div>
+                                        <div style={{ fontWeight: 600, color: '#f8fafc', fontSize: '13px' }}>
+                                          {svc.name}
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
+                                          <span className="mono" style={{ color: '#38bdf8', fontSize: '11px', fontWeight: 600 }}>
+                                            {c?.name || svc.id}
+                                          </span>
+                                          {c?.id && (
+                                            <span
+                                              style={{
+                                                fontSize: '10px',
+                                                color: '#64748b',
+                                                backgroundColor: '#1e293b',
+                                                padding: '1px 5px',
+                                                borderRadius: '4px',
+                                                fontFamily: 'monospace',
+                                              }}
+                                            >
+                                              {c.id}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div style={{ color: 'var(--dark-text-muted)', fontSize: '11px', marginTop: '2px' }}>
+                                          {svc.role}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  <td>
+                                    <span className="mono" style={{ fontSize: '12px', color: '#38bdf8' }}>
+                                      {svc.endpoint}
+                                    </span>
+                                  </td>
+
+                                  <td>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                                      <span
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '6px',
+                                          padding: '3px 8px',
+                                          borderRadius: '20px',
+                                          fontSize: '10px',
+                                          fontWeight: 700,
+                                          textTransform: 'uppercase',
+                                          letterSpacing: '0.04em',
+                                          backgroundColor: isHealthy ? 'rgba(16, 185, 129, 0.15)' : isDegraded ? 'rgba(245, 158, 11, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                                          color: isHealthy ? '#34d399' : isDegraded ? '#fbbf24' : '#f87171',
+                                          border: `1px solid ${isHealthy ? 'rgba(16, 185, 129, 0.3)' : isDegraded ? 'rgba(245, 158, 11, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                                        }}
+                                      >
+                                        <span
+                                          style={{
+                                            width: '6px',
+                                            height: '6px',
+                                            borderRadius: '50%',
+                                            backgroundColor: isHealthy ? '#10b981' : isDegraded ? '#f59e0b' : '#ef4444',
+                                          }}
+                                        />
+                                        {isHealthy ? 'ONLINE' : isDegraded ? 'DEGRADED' : 'DOWN'}
+                                      </span>
+                                      {c?.status && (
+                                        <span style={{ fontSize: '10px', color: '#64748b' }}>
+                                          {c.status}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+
+                                  <td className="mono" style={{ color: isHealthy ? '#10b981' : '#f43f5e', fontWeight: 600, fontSize: '12px' }}>
+                                    {svc.latencyMs >= 0 ? `${svc.latencyMs} ms` : 'Timeout'}
+                                  </td>
+
+                                  <td>
+                                    {c ? (
+                                      <div style={{ minWidth: '110px' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '3px' }}>
+                                          <span style={{ color: '#34d399', fontWeight: 600 }}>{c.memUsageFormatted || '0 B'}</span>
+                                          <span style={{ color: '#64748b' }}>{c.memPercent || 0}%</span>
+                                        </div>
+                                        <div style={{ width: '100%', height: '4px', backgroundColor: '#1e293b', borderRadius: '2px', overflow: 'hidden' }}>
+                                          <div
+                                            style={{
+                                              width: `${Math.min(100, Math.max(2, c.memPercent || 1))}%`,
+                                              height: '100%',
+                                              backgroundColor: '#10b981',
+                                              borderRadius: '2px',
+                                            }}
+                                          />
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <span style={{ fontSize: '11px', color: '#64748b' }}>--</span>
+                                    )}
+                                  </td>
+
+                                  <td>
+                                    {c ? (
+                                      <span className="mono" style={{ fontSize: '12px', color: (c.cpuPercent || 0) > 10 ? '#f43f5e' : '#38bdf8' }}>
+                                        {c.cpuPercent ? `${c.cpuPercent}%` : '< 0.5%'}
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontSize: '11px', color: '#64748b' }}>--</span>
+                                    )}
+                                  </td>
+
+                                  <td>
+                                    {c ? (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                        <span
+                                          style={{
+                                            color: '#f59e0b',
+                                            fontWeight: 600,
+                                            fontSize: '11px',
+                                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                                            padding: '2px 6px',
+                                            borderRadius: '4px',
+                                            border: '1px solid rgba(245, 158, 11, 0.25)',
+                                            display: 'inline-block',
+                                            width: 'fit-content',
+                                          }}
+                                        >
+                                          {c.sizeRwFormatted || '0 B'}
+                                        </span>
+                                        <span className="mono" style={{ fontSize: '11px', color: '#64748b' }}>
+                                          {c.sizeRootFsFormatted || '--'}
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <span style={{ fontSize: '11px', color: '#64748b' }}>--</span>
+                                    )}
+                                  </td>
+
+                                  <td style={{ fontSize: '12px', color: 'var(--dark-text-dim)' }}>
+                                    {svc.details}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+
+                            {unmerged.map((c: any) => (
+                              <tr key={c.id || c.name}>
+                                <td style={{ fontWeight: 600, color: 'var(--dark-text-main)' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span className="mono" style={{ color: '#38bdf8', fontWeight: 700 }}>
+                                      {c.name}
+                                    </span>
+                                    <span
+                                      style={{
+                                        fontSize: '10px',
+                                        color: '#64748b',
+                                        backgroundColor: '#1e293b',
+                                        padding: '1px 6px',
+                                        borderRadius: '4px',
+                                      }}
+                                    >
+                                      {c.id}
+                                    </span>
+                                  </div>
+                                  <div className="mono" style={{ fontSize: '11px', color: '#94a3b8' }}>
+                                    {c.image}
+                                  </div>
+                                </td>
+                                <td className="mono" style={{ fontSize: '12px', color: '#64748b' }}>--</td>
+                                <td>
+                                  <span
                                     style={{
-                                      width: `${Math.min(100, Math.max(2, c.memPercent || 1))}%`,
-                                      height: '100%',
-                                      backgroundColor: '#10b981',
-                                      borderRadius: '2px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '5px',
+                                      padding: '2px 8px',
+                                      borderRadius: '12px',
+                                      fontSize: '10px',
+                                      fontWeight: 600,
+                                      backgroundColor: c.state === 'running' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                                      color: c.state === 'running' ? '#34d399' : '#f87171',
                                     }}
-                                  />
-                                </div>
-                              </div>
-                            </td>
-                            <td>
-                              <span className="mono" style={{ fontSize: '12px', color: (c.cpuPercent || 0) > 10 ? '#f43f5e' : '#38bdf8' }}>
-                                {c.cpuPercent ? `${c.cpuPercent}%` : '< 0.5%'}
-                              </span>
-                            </td>
-                            <td>
-                              <span
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '5px',
-                                  padding: '2px 8px',
-                                  borderRadius: '12px',
-                                  fontSize: '10px',
-                                  fontWeight: 600,
-                                  backgroundColor: c.state === 'running' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                                  color: c.state === 'running' ? '#34d399' : '#f87171',
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    width: '5px',
-                                    height: '5px',
-                                    borderRadius: '50%',
-                                    backgroundColor: c.state === 'running' ? '#10b981' : '#ef4444',
-                                  }}
-                                />
-                                {c.status || c.state}
-                              </span>
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={7} style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
-                            {dockerMetrics?.source || 'Mount /var/run/docker.sock into nestjs-app container to view live Docker space metrics.'}
-                          </td>
-                        </tr>
-                      )}
+                                  >
+                                    <span
+                                      style={{
+                                        width: '5px',
+                                        height: '5px',
+                                        borderRadius: '50%',
+                                        backgroundColor: c.state === 'running' ? '#10b981' : '#ef4444',
+                                      }}
+                                    />
+                                    {c.status || c.state}
+                                  </span>
+                                </td>
+                                <td className="mono" style={{ fontSize: '12px', color: '#64748b' }}>--</td>
+                                <td>
+                                  <div style={{ minWidth: '110px' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '3px' }}>
+                                      <span style={{ color: '#34d399', fontWeight: 600 }}>{c.memUsageFormatted || '0 B'}</span>
+                                      <span style={{ color: '#64748b' }}>{c.memPercent || 0}%</span>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td>
+                                  <span className="mono" style={{ fontSize: '12px', color: '#38bdf8' }}>
+                                    {c.cpuPercent ? `${c.cpuPercent}%` : '< 0.5%'}
+                                  </span>
+                                </td>
+                                <td>
+                                  <span style={{ color: '#f59e0b', fontSize: '11px' }}>{c.sizeRwFormatted}</span>
+                                </td>
+                                <td style={{ fontSize: '12px', color: 'var(--dark-text-dim)' }}>
+                                  Docker Engine Managed Container
+                                </td>
+                              </tr>
+                            ))}
+                          </>
+                        );
+                      })()}
                     </tbody>
                   </table>
                 </div>

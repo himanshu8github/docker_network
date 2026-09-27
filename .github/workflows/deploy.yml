@@ -57,6 +57,9 @@ jobs:
             echo "Rebuilding and restarting Docker containers..."
             docker compose up -d --build
 
+            echo "Refreshing Nginx upstream DNS resolution for newly deployed containers..."
+            docker compose restart nginx-proxy
+
             echo "Pruning dangling Docker images..."
             docker image prune -f
 
